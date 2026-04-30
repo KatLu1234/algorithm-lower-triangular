@@ -1,0 +1,25 @@
+# Python 관련
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# 환경 변수 (절대 공유 금지!)
+.env
+.flaskenv
+
+# IDE 관련
+.vscode/
+.idea/
+
+# 운영체제 관련
+.DS_Store
+Thumbs.db
+
+# 배포/빌드 관련
+dist/
+build/
+*.egg-info/
