@@ -1,40 +1,28 @@
-from typing import List, Optional
+from typing import List, Optional, Any
+from supabase import Client
 from app.schemas.item import ItemCreate, ItemUpdate
 
-# Dummy database
-db = []
-
 class CRUDItem:
-    def get(self, id: int) -> Optional[dict]:
-        for item in db:
-            if item["id"] == id:
-                return item
-        return None
+    def get(self, db: Client, id: int) -> Optional[dict]:
+        response = db.table("items").select("*").eq("id", id).execute()
+        return response.data[0] if response.data else None
 
-    def get_multi(self, skip: int = 0, limit: int = 100) -> List[dict]:
-        return db[skip : skip + limit]
+    def get_multi(self, db: Client, skip: int = 0, limit: int = 100) -> List[dict]:
+        response = db.table("items").select("*").range(skip, skip + limit - 1).execute()
+        return response.data
 
-    def create(self, obj_in: ItemCreate) -> dict:
-        item_id = len(db) + 1
-        item = {
-            "id": item_id,
-            "title": obj_in.title,
-            "description": obj_in.description,
-        }
-        db.append(item)
-        return item
+    def create(self, db: Client, obj_in: ItemCreate) -> dict:
+        data = obj_in.model_dump()
+        response = db.table("items").insert(data).execute()
+        return response.data[0]
 
-    def update(self, db_obj: dict, obj_in: ItemUpdate) -> dict:
-        if obj_in.title:
-            db_obj["title"] = obj_in.title
-        if obj_in.description:
-            db_obj["description"] = obj_in.description
-        return db_obj
+    def update(self, db: Client, id: int, obj_in: ItemUpdate) -> dict:
+        data = obj_in.model_dump(exclude_unset=True)
+        response = db.table("items").update(data).eq("id", id).execute()
+        return response.data[0]
 
-    def remove(self, id: int) -> Optional[dict]:
-        for i, item in enumerate(db):
-            if item["id"] == id:
-                return db.pop(i)
-        return None
+    def remove(self, db: Client, id: int) -> Optional[dict]:
+        response = db.table("items").delete().eq("id", id).execute()
+        return response.data[0] if response.data else None
 
 item = CRUDItem()
