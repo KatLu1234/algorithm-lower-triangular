@@ -39,12 +39,19 @@ algorithm-lower-triangular/
 │   │   ├── product.md       #     · 제품 목적·기대 효과·우선순위
 │   │   ├── user-experience.md  # · 유저가 기대할 수 있는 경험
 │   │   ├── architecture.md  #     · 계층(frontend·server·llm-include) 조합·인터페이스
+│   │   ├── tasks.md         #     · 전체 작업 인덱스(칸반) + 영역 진행 요약
 │   │   └── progress.md      #     · base 문서 변경 이력 (매 변경마다 갱신)
 │   ├── server/           #   - 서버(FastAPI) 영역 세부 지침
+│   │   ├── team-guide.md    #     · 서버 팀원 진입 문서 (★ 영역 팀원이 먼저 읽음)
+│   │   ├── tasks.md         #     · 서버 영역 작업 보드 (칸반)
 │   │   └── progress.md      #     · 기술 스택·별도 지침 변경 시에만 갱신
 │   ├── frontend/         #   - 프론트엔드 영역 세부 지침
+│   │   ├── team-guide.md    #     · 프론트엔드 팀원 진입 문서 (★)
+│   │   ├── tasks.md         #     · 프론트엔드 영역 작업 보드 (칸반)
 │   │   └── progress.md      #     · 기술 스택·별도 지침 변경 시에만 갱신
 │   └── llm-include/      #   - LLM 프롬프트/컨텍스트에 포함할 자료
+│       ├── team-guide.md    #     · LLM 자료 담당 진입 문서 (★)
+│       ├── tasks.md         #     · LLM 자료 영역 작업 보드 (칸반)
 │       └── progress.md      #     · 기술 스택·별도 지침 변경 시에만 갱신
 ├── requirements.txt
 ├── README.md
@@ -99,9 +106,13 @@ Claude가 본 저장소에서 코드를 생성·수정할 때 지켜야 하는 �
 
 1. **먼저 이 `CLAUDE.md`를 읽는다.** 그다음 작업 영역에 맞춰 다음 중 하나 이상을 더 읽는다.
    - 계층 경계 변경(스키마·LLM 흐름·새 엔드포인트 계약 등) → `claude/base/architecture.md` 와 `claude/base/CLAUDE.md`
-   - 서버/API 변경 → `claude/server/`
-   - 프론트엔드 변경 → `claude/frontend/`
-   - LLM에 넘길 컨텍스트 정리 → `claude/llm-include/`
+   - 서버/API 변경 → `claude/server/team-guide.md` (영역 진입 문서 — 큰 틀 먼저)
+   - 프론트엔드 변경 → `claude/frontend/team-guide.md`
+   - LLM에 넘길 컨텍스트 정리 → `claude/llm-include/team-guide.md`
+
+> **팀원이 처음 본 영역에 들어왔다면 그 영역의 `team-guide.md`부터 읽으세요.** 기술 스택·할 일·Claude 사용 방식·지침의 큰 틀이 한 페이지에 정리돼 있고, 깊은 규칙은 거기서 base 문서로 링크가 이어집니다.
+>
+> **자기에게 주어진 작업을 확인할 땐 그 영역의 `tasks.md`** 를 보세요. 두 영역 이상 얽힌 카드와 전체 진행 요약은 [`base/tasks.md`](./base/tasks.md)에 있습니다.
 2. **요구사항이 모호하면 추측하지 말고 사용자에게 질문**한다. 특히:
    - 입력 형식(매트릭스 표현, 인덱스 0/1-기준 등)
    - 반환 형식(JSON 구조, 에러 코드)
@@ -143,8 +154,10 @@ Claude가 본 저장소에서 코드를 생성·수정할 때 지켜야 하는 �
 - [`base/architecture.md`](./base/architecture.md) — `frontend ↔ server ↔ llm-include` 조합 설계, 데이터 흐름, 인터페이스 규약.
 - [`base/progress.md`](./base/progress.md) — base 문서 변경 이력 (모든 base 편집 시 함께 갱신).
 - [`server/progress.md`](./server/progress.md), [`frontend/progress.md`](./frontend/progress.md), [`llm-include/progress.md`](./llm-include/progress.md) — 영역별 기술 스택 스냅샷과 별도 지침 이력 (기술 변경·별도 지침 추가 시에만 갱신).
-- [`server/`](./server/) — FastAPI 라우터·CRUD·DB 작업 시 세부 규칙 (앞으로 작성).
-- [`frontend/`](./frontend/) — 프론트엔드 작업 시 세부 규칙 (스택 확정 후 작성).
-- [`llm-include/`](./llm-include/) — LLM에 넘길 프롬프트 템플릿·few-shot·도메인 자료 (앞으로 작성).
+- [`server/team-guide.md`](./server/team-guide.md) — 서버 팀원 진입 문서. 기술 스택·할 일·Claude 사용 방식·지침의 큰 틀.
+- [`frontend/team-guide.md`](./frontend/team-guide.md) — 프론트엔드 팀원 진입 문서.
+- [`llm-include/team-guide.md`](./llm-include/team-guide.md) — LLM 자료 담당 진입 문서.
+- [`base/tasks.md`](./base/tasks.md) — 전체 작업 칸반 인덱스 + 영역 진행 요약 + 교차 영역 카드.
+- [`server/tasks.md`](./server/tasks.md), [`frontend/tasks.md`](./frontend/tasks.md), [`llm-include/tasks.md`](./llm-include/tasks.md) — 영역별 작업 카드(칸반: TODO/DOING/DONE).
 
 각 하위 폴더에 `README.md` 또는 `guide.md`를 두고, 본 `CLAUDE.md`에 링크를 추가하면서 점진적으로 확장합니다.

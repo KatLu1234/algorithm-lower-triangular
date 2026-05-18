@@ -169,14 +169,21 @@ claude/
 │   ├── architecture.md        # (현재 문서) 계층 조합 설계 + 기술 스택
 │   ├── product.md             # 제품 목적·기대 효과·우선순위
 │   ├── user-experience.md     # 유저가 기대할 수 있는 경험
+│   ├── tasks.md               # 전체 작업 칸반 인덱스 + 영역 진행 요약
 │   └── progress.md            # base 문서 변경 이력 (매 변경마다)
 ├── frontend/
+│   ├── team-guide.md          # 프론트엔드 팀원 진입 문서 (영역 큰 틀)
+│   ├── tasks.md               # 프론트엔드 영역 작업 보드 (칸반)
 │   ├── progress.md            # 기술 스택 변경·별도 지침 이력
 │   └── (예) guide.md, components.md
 ├── server/
+│   ├── team-guide.md          # 서버 팀원 진입 문서
+│   ├── tasks.md               # 서버 영역 작업 보드 (칸반)
 │   ├── progress.md            # 기술 스택 변경·별도 지침 이력
 │   └── (예) endpoints.md, schemas.md, llm-flow.md
 └── llm-include/
+    ├── team-guide.md          # LLM 자료 담당 진입 문서
+    ├── tasks.md               # LLM 자료 영역 작업 보드 (칸반)
     ├── progress.md            # 기술 스택 변경·별도 지침 이력
     ├── prompts/
     │   └── explain_lt.md
