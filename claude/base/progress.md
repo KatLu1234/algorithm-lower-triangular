@@ -16,7 +16,8 @@
 | `product.md` | 제품 목적성·기대 효과·우선순위 (시간표 추천 균형 모델로 초기 입력 완료) | 2026-05-17 |
 | `user-experience.md` | 유저가 기대할 수 있는 경험 (빈 템플릿) | 2026-05-17 |
 | `tasks.md` | 전체 작업 칸반 인덱스 + 영역 진행 요약 + 교차 영역 카드 | 2026-05-19 |
-| `progress.md` | (현재 파일) base 문서 변경 이력 | 2026-05-17 |
+| `progress.md` | (현재 파일) base 문서 변경 이력 | 2026-05-19 |
+| `structure-overview.md` | 프로젝트 현재 계획의 한 장 구조도 (SVG 임베드 + 그림 읽는 법 + 위치 매핑 + 갱신 규칙) | 2026-05-19 |
 | `drafts/` | 임시 저장 영역 — 승인 전 초안 보관. 코드 결정 근거로 인용 금지. | 2026-05-17 |
 | `drafts/algorithm-tree.md` | 알고리즘 분해 트리 — 시간표 도메인 §9 확정 (locked). §1~§8 LT-as-DAG 자료는 폐기 대기 | 2026-05-17 |
 
@@ -26,6 +27,8 @@
 
 | 날짜 | 파일 | 변경 유형 | 요약 | 사유 / 트리거 |
 | ---- | ---- | --------- | ---- | ------------- |
+| 2026-05-19 | `app/schemas/common.py`, `app/schemas/preferences.py`, `app/schemas/__init__.py` | 스키마 확장 | **Requirement 직교 차원 추가** (base/CLAUDE.md §3.2 안전 순서 step 1). `Requirement` enum 신설(REQUIRED·ELECTIVE·OPTIONAL) · `Course.requirement: Optional[Requirement] = None` 옵셔널 필드 추가 · `PreferenceVector.requirement_weights: dict[Requirement, float]` 옵셔널 필드 + `requirement_weight()` 헬퍼 추가 · `__init__.py`에 Requirement 노출. 기존 데이터·호출 100% 호환 (모두 옵셔널). 전공 필수 vs 전공 선택 같은 세분화를 Category와 직교 차원으로 표현 가능. 라우트·프론트엔드 변경은 향후 안전 순서 step 2~3으로 진행. | "전공 필수/선택/교양 구분 기능 — 옵션 (다) 직교 차원으로 확장" 지시 |
+| 2026-05-19 | `structure-overview.md` | 신규 | 프로젝트 현재 계획의 한 장 구조도 신설. SVG 임베드(viewBox 1000×670) + 4패널(좌상 기준결정·우상 알고리즘트리 ✓확정·좌하 구현·우하 영역+TBD) + 상태기호 4종 범례 + 그림 읽는 법 + 위치 매핑 표 + 갱신 규칙. algorithm-tree.md §9 확정 처리 직후 상태 반영. | "구조도 만들어 base에 저장" 지시 |
 | 2026-05-19 | `tasks.md` | 갱신 | §4 영역별 진행 요약 표에서 `llm-include` TODO `0 → 1` 동기화. `llm-include/tasks.md` §2 TODO에 `[I-01] Upstage Solar API 조사 및 도메인 자료 작성` 카드 추가에 따른 보드 카운트 갱신. | 사용자 지시: "Upstage Solar API 조사·사용법을 AI로 `claude/llm-include`에 Claude 읽기 좋은 형태로 상세 작성하는 할 일 지정" |
 | 2026-05-17 | `drafts/algorithm-tree.md` | 확정 | **§9 확정 처리** — "초안 (반영률 ~60%)" → "확정 (locked)"로 승격. 파일 헤더에 [DRAFT] 태그 제거 및 timetable 방향 확정 명시. §5 LT-as-DAG 예시는 폐기 대기로 표시. §9.9 변동성 표 → 확정·변동 분리표(확정 8 + 구현 시 결정 4). §9.10 합의 항목 4건 해소(✓) + 다음 단계 4건(⏳). 본 파일은 `architecture.md` §4.1 흡수까지만 유지 후 폐기 예정. | "draft 확정" 지시 |
 | 2026-05-17 | (영역 9개 문서) `server/{team-guide,tasks,progress}.md`, `frontend/{team-guide,tasks,progress}.md`, `llm-include/{team-guide,tasks,progress}.md` | 형식 변경 | Gemini-친화 형식으로 일괄 변환 — 각 파일 상단 YAML front matter(`doc_type`·`scope`·`purpose`·`target_reader`·`authoritative_for`·`not_authoritative_for`·`priority_reading_order`·`related_docs`·`last_updated`) + 각 절 시작에 PURPOSE/INPUT/OUTPUT/CONSTRAINTS 명시 라벨. 본문 내용·규칙·표는 모두 보존. `claude/base/` 내부 문서와 최상위 `claude/CLAUDE.md`는 변경 대상 외. 향후 새 영역 문서는 본 형식을 따른다. | "base 제외 스키마 md 파일을 Gemini 읽기 쉬운 형태로" 지시 |
