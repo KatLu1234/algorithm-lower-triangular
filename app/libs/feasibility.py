@@ -1,171 +1,245 @@
 """A 노드 — 가능성 분석 (Feasibility).
 
-자식: A-1 강의 풀 정제 (해시) / A-2 충돌 관계 (정렬·이진 탐색) / A-3 가지치기 (활동 선택).
-산출: FeasibilityResult — B·C가 소비.
-조기 종료: must_include 충돌·학점 초과 시 infeasibility_reason 채워서 반환.
+자식: A-1 강의 풀 정제 (해시·blackout) / A-2 충돌 관계 (정렬·이진 + Floyd-Warshall)
+       / A-3 가지치기 (활동 선택 + 학점 도달 가능성).
+출력: FeasibilityResult. 조기 종료 시 infeasibility 필드를 채워 B·C를 건너뛴다.
 """
 from __future__ import annotations
 
-from app.libs.activity_selection import activity_selection, all_mutually_compatible
-from app.libs.binary_search import lower_bound
-from app.libs.floyd_warshall import INF, floyd_warshall
-from app.schemas.timetable import (
+from app.libs.activity_selection import activity_selection
+from app.libs.floyd_warshall import floyd_warshall
+from app.schemas import (
+    BuildingCode,
     Course,
+    CourseId,
     FeasibilityResult,
-    Preferences,
+    InfeasibilityReason,
+    InfeasibilityReport,
+    PreferenceVector,
     TimeSlot,
+    Weekday,
 )
 
+_WEEKDAY_ORDER: dict[Weekday, int] = {
+    Weekday.MON: 0, Weekday.TUE: 1, Weekday.WED: 2, Weekday.THU: 3,
+    Weekday.FRI: 4, Weekday.SAT: 5, Weekday.SUN: 6,
+}
+_LARGE_TRAVEL = 10**6
 
-def _slot_overlaps_blackout(slot: TimeSlot, blackout) -> bool:
-    if slot.day != blackout.day:
-        return False
-    return slot.start_min < blackout.end_min and blackout.start_min < slot.end_min
 
-
-def _fully_blacked_out(course: Course, blackouts) -> bool:
+def _fully_blacked_out(course: Course, prefs: PreferenceVector) -> bool:
     if not course.times:
         return False
-    return all(any(_slot_overlaps_blackout(s, b) for b in blackouts) for s in course.times)
+    return all(
+        any(bw.overlaps_slot(s) for bw in prefs.blackout_windows)
+        for s in course.times
+    )
 
 
-def filter_pool(courses: list[Course], prefs: Preferences) -> tuple[list[Course], list[bool]]:
-    """A-1 — 해시 기반 제외/필수/blackout 적용."""
-    excluded = set(prefs.must_exclude)
-    must_set = set(prefs.must_include)
+def filter_pool(prefs: PreferenceVector) -> tuple[list[Course], set[CourseId]]:
+    """A-1 — exclude·blackout 필터 + must_include 잠금 플래그."""
     candidates: list[Course] = []
-    must_mask: list[bool] = []
-    for c in courses:
-        if c.code in excluded:
+    must_mask: set[CourseId] = set()
+    for c in prefs.courses:
+        if c.id in prefs.exclude:
             continue
-        if _fully_blacked_out(c, prefs.blackouts):
+        if _fully_blacked_out(c, prefs):
             continue
         candidates.append(c)
-        must_mask.append(c.code in must_set)
+        if c.id in prefs.must_include:
+            must_mask.add(c.id)
     return candidates, must_mask
 
 
-def _slots_conflict_time(a: TimeSlot, b: TimeSlot) -> bool:
-    if a.day != b.day:
-        return False
-    return a.start_min < b.end_min and b.start_min < a.end_min
+def build_travel_table(
+    building_codes: list[BuildingCode],
+    base_walk_minutes: list[list[int]],
+) -> tuple[dict[tuple[BuildingCode, BuildingCode], int], list[list[int]]]:
+    """Floyd-Warshall (DP) — 모든 쌍 최단 이동 시간 dict + 보조 행렬."""
+    shortest = floyd_warshall(base_walk_minutes)
+    table: dict[tuple[BuildingCode, BuildingCode], int] = {}
+    for i, bi in enumerate(building_codes):
+        for j, bj in enumerate(building_codes):
+            if i == j:
+                continue
+            table[(bi, bj)] = shortest[i][j]
+    return table, shortest
 
 
-def _travel_violates(a: TimeSlot, b: TimeSlot, travel: int) -> bool:
-    """동일 요일, a가 먼저 끝나는 경우 b 시작까지 이동 가능한지 검사."""
-    if a.day != b.day:
+def _travel(a: BuildingCode, b: BuildingCode, table: dict) -> int:
+    if a == b:
+        return 0
+    if (a, b) in table:
+        return table[(a, b)]
+    if (b, a) in table:
+        return table[(b, a)]
+    return _LARGE_TRAVEL
+
+
+def _travel_violation(sa: TimeSlot, sb: TimeSlot, travel: int) -> bool:
+    if sa.day != sb.day:
         return False
-    if a.end_min <= b.start_min:
-        return a.end_min + travel > b.start_min
-    if b.end_min <= a.start_min:
-        return b.end_min + travel > a.start_min
+    if sa.end_minute <= sb.start_minute:
+        return sa.end_minute + travel > sb.start_minute
+    if sb.end_minute <= sa.start_minute:
+        return sb.end_minute + travel > sa.start_minute
     return False
 
 
 def build_compatibility(
     candidates: list[Course],
-    building_index: dict[str, int],
-    travel_matrix: list[list[int]],
-) -> list[list[bool]]:
-    """A-2 — 시간 겹침·이동 시간 부족 검사로 호환 행렬 구축."""
+    travel_table: dict[tuple[BuildingCode, BuildingCode], int],
+) -> dict[tuple[CourseId, CourseId], bool]:
+    """A-2 — 시간 겹침·이동 시간 부족 검사. 키는 정렬된 (id, id)."""
+    compat: dict[tuple[CourseId, CourseId], bool] = {}
     n = len(candidates)
-    compat = [[True] * n for _ in range(n)]
     for i in range(n):
-        compat[i][i] = False
-        bi = building_index.get(candidates[i].building)
+        ci = candidates[i]
         for j in range(i + 1, n):
-            bj = building_index.get(candidates[j].building)
-            travel = (
-                travel_matrix[bi][bj]
-                if bi is not None and bj is not None
-                else INF
-            )
+            cj = candidates[j]
+            travel = _travel(ci.building, cj.building, travel_table)
             conflict = False
-            for sa in candidates[i].times:
+            for sa in ci.times:
                 if conflict:
                     break
-                for sb in candidates[j].times:
-                    if _slots_conflict_time(sa, sb) or _travel_violates(sa, sb, travel):
+                for sb in cj.times:
+                    if sa.overlaps(sb) or _travel_violation(sa, sb, travel):
                         conflict = True
                         break
-            compat[i][j] = not conflict
-            compat[j][i] = compat[i][j]
+            key: tuple[CourseId, CourseId] = tuple(sorted((ci.id, cj.id)))  # type: ignore[assignment]
+            compat[key] = not conflict
     return compat
 
 
-def order_by_start(candidates: list[Course]) -> list[int]:
-    """각 강의의 가장 이른 시작 시간 기준 인덱스 정렬. binary_search.lower_bound로 짝꿍 조회."""
-    earliest = [min(s.start_min + s.day * 24 * 60 for s in c.times) for c in candidates]
-    order = sorted(range(len(candidates)), key=lambda i: earliest[i])
-    sorted_starts = [earliest[i] for i in order]
-    # demonstrate binary_search usage — find first index with start >= 09:00 of Monday
-    _ = lower_bound(sorted_starts, 9 * 60)
-    return order
+def _earliest_min(course: Course) -> int:
+    return min(_WEEKDAY_ORDER[s.day] * 24 * 60 + s.start_minute for s in course.times)
 
 
-def check_credit_reach(
+def order_by_start(candidates: list[Course]) -> list[CourseId]:
+    """시간 순 시퀀스 (B-3 행렬경로 DP가 소비)."""
+    return [c.id for c in sorted(candidates, key=_earliest_min)]
+
+
+def _all_pairs_compatible(
+    ids: list[CourseId],
+    compatible: dict[tuple[CourseId, CourseId], bool],
+) -> tuple[bool, list[CourseId]]:
+    for a in range(len(ids)):
+        for b in range(a + 1, len(ids)):
+            key: tuple[CourseId, CourseId] = tuple(sorted((ids[a], ids[b])))  # type: ignore[assignment]
+            if not compatible.get(key, False):
+                return False, [ids[a], ids[b]]
+    return True, []
+
+
+def _check_credit_reach(
     candidates: list[Course],
-    must_mask: list[bool],
-    compatible: list[list[bool]],
-    prefs: Preferences,
-) -> tuple[bool, str | None]:
-    """A-3 — 활동 선택으로 학점 도달 가능성·필수 강의 양립성 검증."""
-    must_indices = [i for i, m in enumerate(must_mask) if m]
-    if not all_mutually_compatible(must_indices, compatible):
-        return False, "필수 포함 강의들이 서로 시간 충돌 또는 이동 시간 부족"
+    must_mask: set[CourseId],
+    compatible: dict[tuple[CourseId, CourseId], bool],
+    prefs: PreferenceVector,
+) -> tuple[bool, InfeasibilityReport | None]:
+    """A-3 — 필수 양립성·학점 도달 가능성 (활동 선택 기반)."""
+    by_id = {c.id: c for c in candidates}
+    must_ids = [c.id for c in candidates if c.id in must_mask]
 
-    must_credit = sum(candidates[i].credit for i in must_indices)
-    if must_credit > prefs.credit_ceiling:
-        return False, f"필수 강의 학점 합 {must_credit}이 한도 {prefs.credit_ceiling} 초과"
+    ok, offending = _all_pairs_compatible(must_ids, compatible)
+    if not ok:
+        return False, InfeasibilityReport(
+            reason=InfeasibilityReason.MUST_INCLUDE_PAIR_CONFLICT,
+            stage="A-3",
+            detail=f"필수 강의가 서로 시간 충돌 또는 이동 시간 부족: {offending}",
+            resolution_hint="필수 포함 강의 중 충돌하는 한쪽을 해제하세요.",
+            offending_course_ids=offending,
+        )
 
-    # 후보 전체에 활동 선택을 적용 — 비충돌 부분집합의 학점 합으로 도달 가능 학점 상한 근사.
+    must_credit = sum(by_id[i].credit for i in must_ids)
+    if must_credit > prefs.credit_max:
+        return False, InfeasibilityReport(
+            reason=InfeasibilityReason.CREDIT_CEILING_UNREACHABLE,
+            stage="A-3",
+            detail=f"필수 강의 학점 합 {must_credit}이 상한 {prefs.credit_max} 초과",
+            resolution_hint="필수 강의 일부를 해제하거나 학점 상한을 높이세요.",
+            offending_course_ids=must_ids,
+        )
+
+    # 활동 선택으로 비충돌 부분집합의 학점 상한 근사
     intervals: list[tuple[int, int]] = []
     for c in candidates:
-        s = min(t.start_min + t.day * 24 * 60 for t in c.times)
-        e = max(t.end_min + t.day * 24 * 60 for t in c.times)
-        intervals.append((s, e))
-    selected = activity_selection(intervals)
-    reachable_credit = sum(candidates[i].credit for i in selected)
-
-    if prefs.credit_floor is not None and reachable_credit < prefs.credit_floor:
-        return False, f"가능한 학점 상한 {reachable_credit}이 하한 {prefs.credit_floor} 미달"
-
+        ranges = [
+            (_WEEKDAY_ORDER[s.day] * 24 * 60 + s.start_minute,
+             _WEEKDAY_ORDER[s.day] * 24 * 60 + s.end_minute)
+            for s in c.times
+        ]
+        s_min = min(r[0] for r in ranges)
+        e_max = max(r[1] for r in ranges)
+        intervals.append((s_min, e_max))
+    picked = activity_selection(intervals)
+    reachable_credit = sum(candidates[i].credit for i in picked)
+    if reachable_credit < prefs.credit_min:
+        return False, InfeasibilityReport(
+            reason=InfeasibilityReason.CREDIT_CEILING_UNREACHABLE,
+            stage="A-3",
+            detail=f"활동 선택 기준 도달 가능 학점 {reachable_credit}이 하한 {prefs.credit_min} 미달",
+            resolution_hint="후보 강의를 더 추가하거나 학점 하한을 낮추세요.",
+            offending_course_ids=[],
+        )
     return True, None
 
 
 def feasibility(
-    courses: list[Course],
-    building_codes: list[str],
+    prefs: PreferenceVector,
+    building_codes: list[BuildingCode],
     base_walk_minutes: list[list[int]],
-    prefs: Preferences,
 ) -> FeasibilityResult:
-    candidates, must_mask = filter_pool(courses, prefs)
+    candidates, must_mask = filter_pool(prefs)
 
     if not candidates:
         return FeasibilityResult(
             candidates=[],
-            must_include_mask=[],
-            compatible=[],
-            building_index={b: i for i, b in enumerate(building_codes)},
-            travel_time_matrix=[],
+            must_include_mask=set(),
+            compatible={},
+            travel_time_table={},
             ordered_by_start=[],
             credit_ceiling_reachable=False,
-            infeasibility_reason="제외·blackout 적용 후 남은 강의가 없음",
+            infeasibility=InfeasibilityReport(
+                reason=InfeasibilityReason.EMPTY_POOL,
+                stage="A-1",
+                detail="exclude·blackout 적용 후 남은 강의가 없음",
+                resolution_hint="제외 목록 또는 blackout을 조정해 후보를 확보하세요.",
+                offending_course_ids=[],
+            ),
         )
 
-    travel_matrix = floyd_warshall(base_walk_minutes)
-    building_index = {b: i for i, b in enumerate(building_codes)}
-    compat = build_compatibility(candidates, building_index, travel_matrix)
-    order = order_by_start(candidates)
-    reachable, reason = check_credit_reach(candidates, must_mask, compat, prefs)
+    # 필수 강의 중 풀에서 제거된 게 있으면 A-1 단계에서 잡힘
+    missing_must = prefs.must_include - must_mask
+    if missing_must:
+        return FeasibilityResult(
+            candidates=candidates,
+            must_include_mask=must_mask,
+            compatible={},
+            travel_time_table={},
+            ordered_by_start=[],
+            credit_ceiling_reachable=False,
+            infeasibility=InfeasibilityReport(
+                reason=InfeasibilityReason.MUST_INCLUDE_BLACKOUT_CONFLICT,
+                stage="A-1",
+                detail=f"필수 강의가 exclude 또는 blackout과 충돌해 풀에서 빠짐: {sorted(missing_must)}",
+                resolution_hint="해당 필수 강의의 blackout 또는 exclude 설정을 해제하세요.",
+                offending_course_ids=sorted(missing_must),
+            ),
+        )
+
+    travel_table, _ = build_travel_table(building_codes, base_walk_minutes)
+    compat = build_compatibility(candidates, travel_table)
+    ordered = order_by_start(candidates)
+    reachable, infeas = _check_credit_reach(candidates, must_mask, compat, prefs)
 
     return FeasibilityResult(
         candidates=candidates,
         must_include_mask=must_mask,
         compatible=compat,
-        building_index=building_index,
-        travel_time_matrix=travel_matrix,
-        ordered_by_start=order,
+        travel_time_table=travel_table,
+        ordered_by_start=ordered,
         credit_ceiling_reachable=reachable,
-        infeasibility_reason=reason,
+        infeasibility=infeas,
     )
