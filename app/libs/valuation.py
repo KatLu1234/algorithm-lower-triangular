@@ -15,6 +15,7 @@ from app.libs.binary_search import lower_bound
 from app.libs.knapsack import knapsack_01
 from app.schemas import (
     Course,
+    CourseGroupId,
     CourseId,
     FeasibilityResult,
     PreferenceVector,
@@ -36,12 +37,17 @@ def _core_importance_of(course: Course, prefs: PreferenceVector) -> float:
 
 
 def _per_course_class_weight(course: Course, prefs: PreferenceVector) -> float:
-    """카테고리 + 이수 요건(Requirement) — 직교 차원 두 가중치 합산.
+    """카테고리 + 이수 요건(Requirement) + 교수 — 직교 차원 가중치 합산.
 
-    Requirement는 product.md / progress.md (2026-05-19)에 명시된 직교 차원으로
-    독자적 ScoreBreakdown 필드를 갖지 않으므로 category_weight 항에 합산한다.
+    Requirement·professor는 algorithm-tree §9.3 (2026-05-19)의 v(c) 식에 명시된 항
+    이지만 ScoreBreakdown에 독자 필드가 없어 category_weight 항에 합산한다.
+    professor 항은 같은 course_group_id 분반들 사이의 결정적 신호 역할.
     """
-    return prefs.category_weight(course.category) + prefs.requirement_weight(course.requirement)
+    return (
+        prefs.category_weight(course.category)
+        + prefs.requirement_weight(course.requirement)
+        + prefs.professor_weight(course.professor)
+    )
 
 
 def _per_course_building_weight(course: Course, prefs: PreferenceVector) -> float:
@@ -140,7 +146,14 @@ def _enumerate_feasible_subsets(
     partial_values: dict[CourseId, float],
     top_k: int,
 ) -> list[list[CourseId]]:
-    """B-3 백트래킹 + 0-1 배낭 상한 가지치기. 모든 호환 부분집합 반환 (학점 한도 안)."""
+    """B-3 백트래킹 + 0-1 배낭 상한 가지치기.
+
+    제약:
+      • 학점 [credit_min, credit_max]
+      • 호환 행렬 (A-2가 이미 그룹 동일성·시간 충돌을 모두 False로 채움)
+      • must_include 잠금 (A-1에서 chosen에 강제)
+      • must_include_groups: 결과에 각 그룹의 분반이 최소 1개 존재해야 record
+    """
     candidates = feas.candidates
     by_id = {c.id: c for c in candidates}
     must_ids = sorted(feas.must_include_mask)
@@ -158,19 +171,38 @@ def _enumerate_feasible_subsets(
     remaining_values = [partial_values[i] for i in optional_ids]
     remaining_credits = [by_id[i].credit for i in optional_ids]
 
+    must_groups: set[CourseGroupId] = set(prefs.must_include_groups)
+    # must_include 강의가 이미 채운 그룹은 자동 충족
+    auto_filled_groups: set[CourseGroupId] = {
+        by_id[mid].course_group_id for mid in must_ids if by_id[mid].course_group_id
+    }
+
     results: list[tuple[float, list[CourseId]]] = []
     chosen: list[CourseId] = list(must_ids)
     threshold = {"v": float("-inf")}
 
     def compatible_with_chosen(cid: CourseId) -> bool:
+        # 같은 그룹은 A-2가 False로 채워둔 상태이므로 is_compatible 한 번에 처리됨
         for picked in chosen:
             if not feas.is_compatible(cid, picked):
                 return False
         return True
 
+    def satisfies_must_groups() -> bool:
+        if not must_groups:
+            return True
+        covered = set(auto_filled_groups)
+        for cid in chosen:
+            gid = by_id[cid].course_group_id
+            if gid is not None:
+                covered.add(gid)
+        return must_groups.issubset(covered)
+
     def record(value: float) -> None:
         used = sum(by_id[i].credit for i in chosen)
         if used < prefs.credit_min:
+            return
+        if not satisfies_must_groups():
             return
         results.append((value, list(chosen)))
         if len(results) > top_k * 4:  # 잘라내기: 너무 많은 결과는 정렬 비용
