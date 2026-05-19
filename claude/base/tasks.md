@@ -62,7 +62,7 @@
 | base | 0 | 0 | 0 | 0 | (이 파일) |
 | server | 0 | 0 | 0 | 0 | [→](../server/tasks.md) |
 | frontend | 0 | 0 | 0 | 0 | [→](../frontend/tasks.md) |
-| llm-include | 0 | 0 | 0 | 0 | [→](../llm-include/tasks.md) |
+| llm-include | 1 | 0 | 0 | 0 | [→](../llm-include/tasks.md) |
 
 요약 표 숫자는 카드를 옮길 때 같은 응답에서 함께 갱신합니다(자동화 전까지 수기).
 
