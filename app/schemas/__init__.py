@@ -3,7 +3,7 @@
 권위 있는 출처: `claude/base/drafts/algorithm-tree.md` §9.6.
 """
 
-# 기존 샘플 스키마 (sample item — 골격 단계 잔존, 추후 제거 가능)
+# 기존 샘플 스키마
 from .item import Item, ItemCreate, ItemUpdate
 from .msg import Msg
 
@@ -13,6 +13,7 @@ from .common import (
     BuildingCode,
     Category,
     Course,
+    CourseGroupId,
     CourseId,
     InfeasibilityReason,
     InfeasibilityReport,
@@ -34,28 +35,13 @@ from .selection import (
 )
 
 __all__ = [
-    "Item",
-    "ItemCreate",
-    "ItemUpdate",
-    "Msg",
-    "BlackoutWindow",
-    "BuildingCode",
-    "Category",
-    "Course",
-    "CourseId",
-    "InfeasibilityReason",
-    "InfeasibilityReport",
-    "Requirement",
-    "TimeSlot",
-    "Weekday",
+    "Item", "ItemCreate", "ItemUpdate", "Msg",
+    "BlackoutWindow", "BuildingCode", "Category", "Course",
+    "CourseGroupId", "CourseId",
+    "InfeasibilityReason", "InfeasibilityReport",
+    "Requirement", "TimeSlot", "Weekday",
     "PreferenceVector",
     "FeasibilityResult",
-    "ScoreBreakdown",
-    "ScoredSchedule",
-    "ValuationResult",
-    "DiffInfo",
-    "Rationale",
-    "RationaleStatus",
-    "SelectionResult",
-    "StageCode",
+    "ScoreBreakdown", "ScoredSchedule", "ValuationResult",
+    "DiffInfo", "Rationale", "RationaleStatus", "SelectionResult", "StageCode",
 ]

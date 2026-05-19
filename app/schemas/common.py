@@ -14,10 +14,16 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 CourseId = str
-"""강의 코드 (예: 'CS101-01')."""
+"""강의 코드 (예: 'CS101-01-홍교수')."""
 
 BuildingCode = str
 """건물 코드 (예: '공학관')."""
+
+CourseGroupId = str
+"""과목 그룹 ID — 같은 과목의 분반들을 묶는 키 (예: 'CS101').
+
+같은 group_id를 공유하는 강의들은 *상호 배타* — 시간표에 그룹당 최대 1개만 선택됨.
+"""
 
 
 class Weekday(str, Enum):
@@ -44,11 +50,7 @@ class Category(str, Enum):
 class Requirement(str, Enum):
     """이수 요건 분류 — Category와 직교하는 두 번째 차원.
 
-    같은 강의가 어떤 학생에게는 전공 필수일 수도, 다른 학생에게는 전공 선택일
-    수도 있으나(복수전공 등), 본 시스템은 *입력하는 학생 관점*에서의 분류만
-    다룬다. 학사 시스템과의 동기화는 본 범위 밖.
-
-    옵셔널 필드 — 미지정 강의는 `None`으로 두며, 가중치는 0으로 처리.
+    옵셔널 — 미지정 시 None. 가중치 0으로 처리.
     """
 
     REQUIRED = "필수"
@@ -108,7 +110,11 @@ class BlackoutWindow(BaseModel):
 
 
 class Course(BaseModel):
-    """한 강의의 메타데이터."""
+    """한 강의(분반)의 메타데이터.
+
+    같은 *과목*의 다른 분반들은 서로 다른 `id`를 가지되 *같은 `course_group_id`*를
+    공유한다. A-2가 그룹 동일성을 양립 불가 조건으로 적용해 그룹당 최대 1개 선택.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -120,21 +126,44 @@ class Course(BaseModel):
     category: Category
     requirement: Optional[Requirement] = Field(
         default=None,
+        description="이수 요건 (필수/선택/자율). 옵셔널.",
+    )
+
+    # ── 분반·교수 (옵셔널) ────────────────────────────────────────
+    course_group_id: Optional[CourseGroupId] = Field(
+        default=None,
         description=(
-            "이수 요건 분류 (필수/선택/자율). 옵셔널 — 미지정 시 None. "
-            "B-1이 `requirement_weights`로 룩업해 v(c)에 가산."
+            "같은 과목의 분반들을 묶는 그룹 ID. 같은 값 공유 강의는 *상호 배타* — "
+            "그룹당 최대 1개만 시간표에 선택됨. None 이면 그룹 없음 (단독 강의)."
         ),
+    )
+    section: Optional[str] = Field(
+        default=None,
+        description="분반 표시 라벨 (예: 'A반', '01'). 표시용 — 알고리즘은 course_group_id로 판정.",
+    )
+    professor: Optional[str] = Field(
+        default=None,
+        description="담당 교수 이름. 표시용 + (선택) professor_preferences 룩업 키.",
     )
 
 
 class InfeasibilityReason(str, Enum):
     """알고리즘 트리가 진단할 수 있는 불가능 사유 코드."""
 
+    # A-1
     USER_CONTRADICTION = "user_contradiction"
     MUST_INCLUDE_INVALID = "must_include_invalid"
     MUST_INCLUDE_BLACKOUT_CONFLICT = "must_include_blackout_conflict"
     EMPTY_POOL = "empty_pool"
+    MUST_INCLUDE_GROUP_EMPTY = "must_include_group_empty"
+    """must_include_groups의 그룹에 정제 후 후보가 0개."""
+
+    # A-2
     MUST_INCLUDE_PAIR_CONFLICT = "must_include_pair_conflict"
+    GROUP_PAIR_CONFLICT = "group_pair_conflict"
+    """두 must_include_groups의 어떤 분반 조합도 시간·이동 양립 불가."""
+
+    # A-3
     CREDIT_CEILING_UNREACHABLE = "credit_ceiling_unreachable"
 
 
@@ -153,4 +182,8 @@ class InfeasibilityReport(BaseModel):
     offending_course_ids: list[CourseId] = Field(
         default_factory=list,
         description="원인이 되는 강의 ID 목록",
+    )
+    offending_group_ids: list[CourseGroupId] = Field(
+        default_factory=list,
+        description="원인이 되는 과목 그룹 ID 목록 (그룹 단위 infeasibility 시)",
     )
