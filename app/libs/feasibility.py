@@ -1,7 +1,8 @@
 """A 노드 — 가능성 분석 (Feasibility).
 
-자식: A-1 강의 풀 정제 (해시·blackout) / A-2 충돌 관계 (정렬·이진 + Floyd-Warshall)
-       / A-3 가지치기 (활동 선택 + 학점 도달 가능성).
+자식: A-1 강의 풀 정제 (해시·blackout·exclude_groups) / A-2 충돌 관계 (정렬·이진
++ Floyd-Warshall + 같은 course_group_id 양립 불가) / A-3 가지치기 (활동 선택 +
+학점 도달 가능성 + must_include_groups 양립성).
 출력: FeasibilityResult. 조기 종료 시 infeasibility 필드를 채워 B·C를 건너뛴다.
 """
 from __future__ import annotations
@@ -11,6 +12,7 @@ from app.libs.floyd_warshall import floyd_warshall
 from app.schemas import (
     BuildingCode,
     Course,
+    CourseGroupId,
     CourseId,
     FeasibilityResult,
     InfeasibilityReason,
@@ -37,11 +39,13 @@ def _fully_blacked_out(course: Course, prefs: PreferenceVector) -> bool:
 
 
 def filter_pool(prefs: PreferenceVector) -> tuple[list[Course], set[CourseId]]:
-    """A-1 — exclude·blackout 필터 + must_include 잠금 플래그."""
+    """A-1 — exclude·exclude_groups·blackout 필터 + must_include 잠금 플래그."""
     candidates: list[Course] = []
     must_mask: set[CourseId] = set()
     for c in prefs.courses:
         if c.id in prefs.exclude:
+            continue
+        if c.course_group_id is not None and c.course_group_id in prefs.exclude_groups:
             continue
         if _fully_blacked_out(c, prefs):
             continue
@@ -90,13 +94,22 @@ def build_compatibility(
     candidates: list[Course],
     travel_table: dict[tuple[BuildingCode, BuildingCode], int],
 ) -> dict[tuple[CourseId, CourseId], bool]:
-    """A-2 — 시간 겹침·이동 시간 부족 검사. 키는 정렬된 (id, id)."""
+    """A-2 — 시간 겹침·이동 시간 부족 + 같은 course_group_id 검사. 키는 정렬된 (id, id)."""
     compat: dict[tuple[CourseId, CourseId], bool] = {}
     n = len(candidates)
     for i in range(n):
         ci = candidates[i]
         for j in range(i + 1, n):
             cj = candidates[j]
+            key: tuple[CourseId, CourseId] = tuple(sorted((ci.id, cj.id)))  # type: ignore[assignment]
+            # 같은 과목의 두 분반은 상호 배타 — 시간 무관 양립 불가
+            if (
+                ci.course_group_id is not None
+                and cj.course_group_id is not None
+                and ci.course_group_id == cj.course_group_id
+            ):
+                compat[key] = False
+                continue
             travel = _travel(ci.building, cj.building, travel_table)
             conflict = False
             for sa in ci.times:
@@ -106,7 +119,6 @@ def build_compatibility(
                     if sa.overlaps(sb) or _travel_violation(sa, sb, travel):
                         conflict = True
                         break
-            key: tuple[CourseId, CourseId] = tuple(sorted((ci.id, cj.id)))  # type: ignore[assignment]
             compat[key] = not conflict
     return compat
 
@@ -130,6 +142,54 @@ def _all_pairs_compatible(
             if not compatible.get(key, False):
                 return False, [ids[a], ids[b]]
     return True, []
+
+
+def _check_must_include_groups(
+    candidates: list[Course],
+    compatible: dict[tuple[CourseId, CourseId], bool],
+    prefs: PreferenceVector,
+) -> InfeasibilityReport | None:
+    """A-3 — must_include_groups: 그룹별 최소 1개 분반 존재 + 그룹 간 양립 분반 조합 존재."""
+    by_group: dict[CourseGroupId, list[Course]] = {}
+    for c in candidates:
+        if c.course_group_id is not None:
+            by_group.setdefault(c.course_group_id, []).append(c)
+
+    for gid in prefs.must_include_groups:
+        if not by_group.get(gid):
+            return InfeasibilityReport(
+                reason=InfeasibilityReason.MUST_INCLUDE_GROUP_EMPTY,
+                stage="A-3",
+                detail=f"필수 그룹 {gid!r}의 모든 분반이 A-1에서 제외되어 후보가 0개",
+                resolution_hint="해당 그룹의 분반 중 하나의 exclude·blackout 설정을 풀어주세요.",
+                offending_course_ids=[],
+                offending_group_ids=[gid],
+            )
+
+    # 필수 그룹 둘 이상의 분반들이 서로 모두 양립 불가한 조합인지 확인
+    must_groups = sorted(prefs.must_include_groups)
+    for a in range(len(must_groups)):
+        for b in range(a + 1, len(must_groups)):
+            ga, gb = must_groups[a], must_groups[b]
+            any_pair_ok = False
+            for ca in by_group[ga]:
+                for cb in by_group[gb]:
+                    key: tuple[CourseId, CourseId] = tuple(sorted((ca.id, cb.id)))  # type: ignore[assignment]
+                    if compatible.get(key, False):
+                        any_pair_ok = True
+                        break
+                if any_pair_ok:
+                    break
+            if not any_pair_ok:
+                return InfeasibilityReport(
+                    reason=InfeasibilityReason.GROUP_PAIR_CONFLICT,
+                    stage="A-3",
+                    detail=f"필수 그룹 {ga!r}와 {gb!r}의 어떤 분반 조합도 양립 불가",
+                    resolution_hint="두 그룹 중 한쪽의 시간대 후보를 추가하거나 한쪽을 해제하세요.",
+                    offending_course_ids=[],
+                    offending_group_ids=[ga, gb],
+                )
+    return None
 
 
 def _check_credit_reach(
@@ -162,19 +222,27 @@ def _check_credit_reach(
             offending_course_ids=must_ids,
         )
 
-    # 활동 선택으로 비충돌 부분집합의 학점 상한 근사
-    intervals: list[tuple[int, int]] = []
-    for c in candidates:
-        ranges = [
-            (_WEEKDAY_ORDER[s.day] * 24 * 60 + s.start_minute,
-             _WEEKDAY_ORDER[s.day] * 24 * 60 + s.end_minute)
-            for s in c.times
-        ]
-        s_min = min(r[0] for r in ranges)
-        e_max = max(r[1] for r in ranges)
-        intervals.append((s_min, e_max))
-    picked = activity_selection(intervals)
-    reachable_credit = sum(candidates[i].credit for i in picked)
+    # 그룹 제약 검증
+    group_infeas = _check_must_include_groups(candidates, compatible, prefs)
+    if group_infeas is not None:
+        return False, group_infeas
+
+    # 요일별 활동 선택으로 비충돌 부분집합 추정 — 다중 슬롯 강의는 어느 한 요일에라도
+    # 살아남으면 학점에 1회 합산. 보수적 상한(실제 시간표 호환성보다 헐겁다)이지만
+    # credit_min 도달 불가 케이스를 일찍 걸러내는 데 충분.
+    by_day: dict[int, list[tuple[int, int, int]]] = {}  # day -> [(start, end, course_idx)]
+    for ci, c in enumerate(candidates):
+        for s in c.times:
+            d = _WEEKDAY_ORDER[s.day]
+            by_day.setdefault(d, []).append((s.start_minute, s.end_minute, ci))
+
+    reachable_course_idx: set[int] = set()
+    for d, entries in by_day.items():
+        intervals_d = [(s, e) for s, e, _ in entries]
+        picked = activity_selection(intervals_d)
+        for p in picked:
+            reachable_course_idx.add(entries[p][2])
+    reachable_credit = sum(candidates[i].credit for i in reachable_course_idx)
     if reachable_credit < prefs.credit_min:
         return False, InfeasibilityReport(
             reason=InfeasibilityReason.CREDIT_CEILING_UNREACHABLE,
