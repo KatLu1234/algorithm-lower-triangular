@@ -1,0 +1,119 @@
+import { useRef, useState } from "react";
+
+import { ApiError, requestTimetable } from "./api/client";
+import { PreferenceForm } from "./components/PreferenceForm";
+import { ScheduleResult } from "./components/ScheduleResult";
+import { EmptyState, ErrorState, LoadingState } from "./components/States";
+import { buildSamplePreference, buildSampleResult } from "./lib/sampleData";
+import type { Course, PreferenceVector, SelectionResult } from "./types/timetable";
+
+type Status = "initial" | "loading" | "result" | "empty" | "error";
+
+export default function App() {
+  // 폼 초기값 = 샘플 선호 (디자인 확인을 위해 강의 풀이 채워진 상태로 시작)
+  const [samplePreference] = useState<PreferenceVector>(() => buildSamplePreference());
+
+  const [status, setStatus] = useState<Status>("initial");
+  const [result, setResult] = useState<SelectionResult | null>(null);
+  const [poolCourses, setPoolCourses] = useState<Course[]>(samplePreference.courses);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [resolutionHint, setResolutionHint] = useState<string | null>(null);
+  const [explanation, setExplanation] = useState<string | null>(null);
+  const [isSample, setIsSample] = useState(false);
+
+  const lastPref = useRef<PreferenceVector | null>(null);
+
+  async function runSolve(pref: PreferenceVector) {
+    lastPref.current = pref;
+    setIsSample(false);
+    setPoolCourses(pref.courses);
+    setStatus("loading");
+    try {
+      const res = await requestTimetable({ preference: pref, top_n: 3, explain: false });
+      if (res.infeasibility) {
+        setResolutionHint(res.infeasibility.resolution_hint ?? res.infeasibility.detail);
+        setStatus("empty");
+        return;
+      }
+      if (!res.selection || res.selection.ranked_schedules.length === 0) {
+        setResolutionHint(null);
+        setStatus("empty");
+        return;
+      }
+      setResult(res.selection);
+      setExplanation(res.explanation ?? null);
+      setStatus("result");
+    } catch (err) {
+      setErrorMessage(
+        err instanceof ApiError
+          ? err.message
+          : "예상치 못한 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+      );
+      setStatus("error");
+    }
+  }
+
+  function previewSample() {
+    setIsSample(true);
+    setPoolCourses(samplePreference.courses);
+    setResult(buildSampleResult());
+    setExplanation(null);
+    setStatus("result");
+  }
+
+  return (
+    <div className="min-h-full">
+      {/* 헤더 */}
+      <header className="border-b border-cream-300 bg-cream-50">
+        <div className="mx-auto flex max-w-7xl flex-col gap-1 px-6 py-5">
+          <h1 className="text-xl font-bold text-brand-700">시간표 만들기</h1>
+          <p className="text-sm text-ink-soft">
+            강의 후보를 입력하면 시간 충돌·학점·이동시간·중요도를 함께 고려한 최적
+            시간표를 추천하고, <b>왜 그 결과가 나왔는지</b>를 강의 단위로 설명합니다.
+          </p>
+        </div>
+      </header>
+
+      {/* 본문: 좌 입력 / 우 결과 (PC 우선 — product.md §2.3) */}
+      <main className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[380px_minmax(0,1fr)]">
+        {/* 입력 폼 */}
+        <div className="lg:sticky lg:top-6 lg:self-start">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <PreferenceForm
+              initial={samplePreference}
+              submitting={status === "loading"}
+              onSubmit={runSolve}
+              onPreviewSample={previewSample}
+            />
+          </div>
+        </div>
+
+        {/* 결과 */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:min-h-[32rem]">
+          {status === "initial" && <EmptyState variant="initial" />}
+          {status === "loading" && <LoadingState />}
+          {status === "empty" && (
+            <EmptyState variant="no-result" resolutionHint={resolutionHint} />
+          )}
+          {status === "error" && (
+            <ErrorState
+              message={errorMessage}
+              onRetry={() => {
+                if (lastPref.current) void runSolve(lastPref.current);
+                else setStatus("initial");
+              }}
+            />
+          )}
+          {status === "result" && result && (
+            <ScheduleResult
+              courses={poolCourses}
+              result={result}
+              explanation={explanation}
+              isSample={isSample}
+            />
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}

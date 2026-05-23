@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Repo meta — Docker 이미지에 들어가면 안 됨
+.git/
+.gitignore
+.dockerignore
+.claude/
+
+# Tests · docs (런타임에 불필요)
+tests/
+claude/
+*.md
+project-status-*
+
+# Frontend (별도 컨테이너)
+frontend/
+node_modules/
+
+# Secrets
+.env
+.env.*

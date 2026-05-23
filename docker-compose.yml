@@ -1,0 +1,38 @@
+# 시간표 만들기 — 프론트(nginx 정적 + /api 프록시) + 백엔드(FastAPI/uvicorn)
+#
+# 사용:
+#   docker compose up --build
+#   → http://localhost:8080  (frontend nginx, /api 는 backend로 자동 프록시)
+#
+# 단일 백엔드 직접 호출:
+#   docker compose up backend
+#   → http://localhost:8000/docs
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: lt-backend:latest
+    container_name: lt-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # MVP는 DB 미연결 — supabase 사용 시점에서 채움
+      SUPABASE_URL: ""
+      SUPABASE_KEY: ""
+      PYTHONUNBUFFERED: "1"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: lt-frontend:latest
+    container_name: lt-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
