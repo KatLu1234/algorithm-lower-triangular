@@ -1,17 +1,24 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { ApiError, requestTimetable } from "./api/client";
+import { ApiError, fetchSampleCourses, requestTimetable } from "./api/client";
 import { PreferenceForm } from "./components/PreferenceForm";
 import { ScheduleResult } from "./components/ScheduleResult";
 import { EmptyState, ErrorState, LoadingState } from "./components/States";
-import { buildSamplePreference, buildSampleResult } from "./lib/sampleData";
+import {
+  buildPreferenceFromCourses,
+  buildSamplePreference,
+  buildSampleResult,
+} from "./lib/sampleData";
 import type { Course, PreferenceVector, SelectionResult } from "./types/timetable";
 
 type Status = "initial" | "loading" | "result" | "empty" | "error";
 
 export default function App() {
-  // 폼 초기값 = 샘플 선호 (디자인 확인을 위해 강의 풀이 채워진 상태로 시작)
-  const [samplePreference] = useState<PreferenceVector>(() => buildSamplePreference());
+  // 폼 초기값 = 내장 샘플 선호 (서버 연결 전 fallback).
+  // 마운트 직후 서버에서 sample_data.csv 파싱본을 받아 교체한다.
+  const [samplePreference, setSamplePreference] = useState<PreferenceVector>(
+    () => buildSamplePreference(),
+  );
 
   const [status, setStatus] = useState<Status>("initial");
   const [result, setResult] = useState<SelectionResult | null>(null);
@@ -22,6 +29,26 @@ export default function App() {
   const [isSample, setIsSample] = useState(false);
 
   const lastPref = useRef<PreferenceVector | null>(null);
+
+  // 초기 로드: 서버에서 국민대 sample_data.csv 파싱본을 받아 후보 풀로 채움.
+  // 실패(서버 미가용·CSV 없음) 시 내장 샘플을 그대로 사용 — 화면은 계속 떠 있음.
+  useEffect(() => {
+    let aborted = false;
+    fetchSampleCourses()
+      .then(({ courses }) => {
+        if (aborted || courses.length === 0) return;
+        const pref = buildPreferenceFromCourses(courses);
+        setSamplePreference(pref);
+        setPoolCourses(courses);
+      })
+      .catch(() => {
+        // 서버 미가용 — 내장 샘플 유지. 콘솔로만 알린다.
+        console.warn("[sample-courses] 서버에서 강의 풀을 받지 못해 내장 샘플을 사용합니다.");
+      });
+    return () => {
+      aborted = true;
+    };
+  }, []);
 
   async function runSolve(pref: PreferenceVector) {
     lastPref.current = pref;
