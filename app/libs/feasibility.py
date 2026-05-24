@@ -94,7 +94,11 @@ def build_compatibility(
     candidates: list[Course],
     travel_table: dict[tuple[BuildingCode, BuildingCode], int],
 ) -> dict[tuple[CourseId, CourseId], bool]:
-    """A-2 — 시간 겹침·이동 시간 부족 + 같은 course_group_id 검사. 키는 정렬된 (id, id)."""
+    """A-2 — 시간 겹침·이동 시간 부족 + 같은 course_group_id 검사. 키는 정렬된 (id, id).
+
+    이동 시간은 *슬롯 쌍 단위*로 산정. 같은 강의도 슬롯마다 건물이 다를 수 있으므로
+    (TimeSlot.building override) 각 (sa, sb) 쌍에서 실제 건물 거리를 룩업한다.
+    """
     compat: dict[tuple[CourseId, CourseId], bool] = {}
     n = len(candidates)
     for i in range(n):
@@ -110,13 +114,18 @@ def build_compatibility(
             ):
                 compat[key] = False
                 continue
-            travel = _travel(ci.building, cj.building, travel_table)
             conflict = False
             for sa in ci.times:
                 if conflict:
                     break
+                bi = sa.resolve_building(ci.building)
                 for sb in cj.times:
-                    if sa.overlaps(sb) or _travel_violation(sa, sb, travel):
+                    if sa.overlaps(sb):
+                        conflict = True
+                        break
+                    bj = sb.resolve_building(cj.building)
+                    travel = _travel(bi, bj, travel_table)
+                    if _travel_violation(sa, sb, travel):
                         conflict = True
                         break
             compat[key] = not conflict

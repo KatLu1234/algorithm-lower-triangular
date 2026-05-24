@@ -44,8 +44,14 @@ class TimetableResponse(BaseModel):
 
 
 def _building_grid(preference: PreferenceVector) -> tuple[list[BuildingCode], list[list[int]]]:
-    """후보 강의에서 사용된 건물을 모아 거리 행렬 생성."""
-    buildings = sorted({c.building for c in preference.courses})
+    """후보 강의에서 사용된 건물을 모아 거리 행렬 생성. 슬롯 단위 building override도 포함."""
+    used: set[BuildingCode] = set()
+    for c in preference.courses:
+        used.add(c.building)
+        for s in c.times:
+            if s.building is not None:
+                used.add(s.building)
+    buildings = sorted(used)
     n = len(buildings)
     walk = [
         [0 if i == j else _DEFAULT_INTER_BUILDING_MIN for j in range(n)]
