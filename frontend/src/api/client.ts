@@ -9,7 +9,12 @@
  *  - LLM 직접 호출·시크릿 보관 금지 (서버 경유).
  */
 
-import type { Course, TimetableRequest, TimetableResponse } from "../types/timetable";
+import type {
+  Course,
+  PreferenceVector,
+  TimetableRequest,
+  TimetableResponse,
+} from "../types/timetable";
 
 /** 서버 표준 에러 바디. */
 interface ApiErrorBody {
@@ -47,6 +52,9 @@ const CODE_MESSAGES: Record<string, string> = {
   VALIDATION_ERROR: "입력값에 문제가 있습니다. 강조 표시된 항목을 확인해 주세요.",
   CREDIT_RANGE_INVALID: "학점 하한이 상한보다 큽니다. 학점 범위를 다시 설정해 주세요.",
   TIMEOUT: "계산이 제한 시간을 초과했습니다. 강의 후보 수를 줄여 다시 시도해 주세요.",
+  LLM_UNAVAILABLE: "자연어 변환 서비스(Upstage)에 연결할 수 없습니다. 서버에 UPSTAGE_API_KEY가 설정돼 있는지 확인해 주세요.",
+  LLM_TIMEOUT: "자연어 변환이 시간 안에 응답하지 않았습니다. 잠시 후 다시 시도해 주세요.",
+  LLM_BAD_RESPONSE: "자연어 변환 결과를 해석하지 못했습니다. 표현을 조금 바꿔 다시 시도해 주세요.",
 };
 
 const FALLBACK_MESSAGE =
@@ -112,6 +120,32 @@ export async function requestTimetable(
 export interface SampleCoursesResponse {
   courses: Course[];
   source: string;
+}
+
+/** 자연어 → PreferenceVector 부분 업데이트 요청.
+ *
+ *  POST /api/v1/timetable/parse-preference. LLM(Upstage Solar)이 사용자 문장을
+ *  현재 PreferenceVector에 적용 가능한 delta로 변환해 반환한다. *결정자 아님* —
+ *  최종 시간표는 그 다음 /solve 호출에서 알고리즘이 만든다(product.md §4.4).
+ */
+export interface ParsePreferenceRequest {
+  text: string;
+  preference: PreferenceVector;
+}
+
+export interface ParsePreferenceResponse {
+  preference: PreferenceVector;
+  applied: string[];     // 이해해서 적용한 항목 (한국어 라벨)
+  unsupported: string[]; // 이해 못 했거나 시스템이 표현할 수 없는 항목
+}
+
+export async function parsePreference(
+  payload: ParsePreferenceRequest,
+): Promise<ParsePreferenceResponse> {
+  return postJson<ParsePreferenceRequest, ParsePreferenceResponse>(
+    "/timetable/parse-preference",
+    payload,
+  );
 }
 
 /** 샘플 강의 카탈로그 조회 — GET /api/v1/timetable/sample-courses.

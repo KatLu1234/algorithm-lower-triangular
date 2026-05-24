@@ -22,9 +22,15 @@ Thumbs.db
 
 # Tests · docs (런타임에 불필요)
 tests/
-claude/
-*.md
 project-status-*
+
+# claude/ — 일부 자산은 런타임이 사용. Dockerfile.backend의 COPY가 필요한 것만 가져감.
+# 여기서 전체 차단하지 않고, 빌드 컨텍스트에는 두되 명시적 COPY로 골라 담는다.
+# (.dockerignore는 빌드 컨텍스트 단계의 제외 — claude/는 차단하지 말 것)
+# claude/
+
+# README 등 루트 .md는 런타임 불필요
+README.md
 
 # Frontend (별도 컨테이너)
 frontend/

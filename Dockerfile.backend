@@ -15,6 +15,10 @@ RUN pip install -r requirements.txt
 COPY app ./app
 COPY sample_data.csv ./sample_data.csv
 
+# LLM-A 프롬프트 (app/libs/llm_context.py가 런타임에 읽음). 영역 분리 규칙
+# (architecture.md §3.3)에 따라 .md/.json 데이터 자산만 포함, 코드는 제외.
+COPY claude/llm-include/prompts ./claude/llm-include/prompts
+
 EXPOSE 8000
 
 # 헬스체크 — nginx가 backend 컨테이너 ready 여부 확인 가능
