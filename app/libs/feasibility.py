@@ -96,8 +96,9 @@ def build_compatibility(
 ) -> dict[tuple[CourseId, CourseId], bool]:
     """A-2 — 시간 겹침·이동 시간 부족 + 같은 course_group_id 검사. 키는 정렬된 (id, id).
 
-    이동 시간 검사는 강의 단위 대표 건물이 아니라 *슬롯별 건물*로 한다 — 한 강의가
-    요일마다 다른 건물에서 열릴 수 있기 때문(예: 월 과기1관 / 화 농심국제관).
+    이동 시간은 *슬롯 쌍 단위*로 산정. 같은 강의도 슬롯마다 건물이 다를 수 있으므로
+    (TimeSlot.building override) 각 (sa, sb) 쌍에서 실제 건물 거리를 룩업한다.
+
     """
     compat: dict[tuple[CourseId, CourseId], bool] = {}
     n = len(candidates)
@@ -114,16 +115,19 @@ def build_compatibility(
             ):
                 compat[key] = False
                 continue
-            # 건물은 슬롯 단위 — 이동 시간은 충돌 후보 슬롯쌍의 실제 건물로 계산한다.
+
             conflict = False
             for sa in ci.times:
                 if conflict:
                     break
+                bi = sa.resolve_building(ci.building)
                 for sb in cj.times:
                     if sa.overlaps(sb):
                         conflict = True
                         break
-                    travel = _travel(sa.building, sb.building, travel_table)
+
+                    bj = sb.resolve_building(cj.building)
+                    travel = _travel(bi, bj, travel_table)
                     if _travel_violation(sa, sb, travel):
                         conflict = True
                         break

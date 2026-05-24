@@ -53,6 +53,9 @@ export interface TimeSlot {
   day: Weekday;
   start_minute: number; // 0–1439
   end_minute: number; // 1–1440, start < end
+  /** 슬롯 단위 건물 override. 같은 강의가 요일별로 다른 건물을 쓰는 경우만 채움.
+   *  null/undefined면 백엔드가 Course.building을 기본으로 사용. */
+  building?: BuildingCode | null;
 }
 
 /** 사용자가 절대 불가로 표시한 시간대(통학·알바 등). */

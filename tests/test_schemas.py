@@ -22,6 +22,15 @@ class TestTimeSlot:
         with pytest.raises(ValidationError):
             TimeSlot(day=Weekday.MON, start_minute=720, end_minute=600, building="공학관")
 
+    def test_resolve_building_default(self):
+        s = TimeSlot(day=Weekday.MON, start_minute=540, end_minute=600)
+        assert s.building is None
+        assert s.resolve_building("공학관") == "공학관"
+
+    def test_resolve_building_override(self):
+        s = TimeSlot(day=Weekday.MON, start_minute=540, end_minute=600, building="본관")
+        assert s.resolve_building("공학관") == "본관"
+
 
 class TestPreferenceVector:
     def test_minji_scenario_constructs(self, minji_pv):
