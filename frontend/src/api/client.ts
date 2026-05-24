@@ -9,7 +9,7 @@
  *  - LLM 직접 호출·시크릿 보관 금지 (서버 경유).
  */
 
-import type { TimetableRequest, TimetableResponse } from "../types/timetable";
+import type { Course, TimetableRequest, TimetableResponse } from "../types/timetable";
 
 /** 서버 표준 에러 바디. */
 interface ApiErrorBody {
@@ -101,16 +101,37 @@ async function postJson<TReq, TRes>(path: string, body: TReq): Promise<TRes> {
   return (await response.json()) as TRes;
 }
 
-/**
- * 시간표 생성 요청.
- *
- * ⚠️ 라우트 경로 "/timetable/solve" 는 잠정입니다 — 서버에 아직 미등록.
- *    실제 경로·요청/응답 envelope는 서버 팀과 base/CLAUDE.md §3.2 안전 순서로
- *    확정해야 합니다. 그 전까지 이 호출은 실패하며, 화면은 에러 상태를 보여주거나
- *    "샘플로 미리보기" 경로를 사용합니다.
- */
+/** 시간표 생성 요청 — POST /api/v1/timetable/solve. */
 export async function requestTimetable(
   payload: TimetableRequest,
 ): Promise<TimetableResponse> {
   return postJson<TimetableRequest, TimetableResponse>("/timetable/solve", payload);
+}
+
+/** 서버 응답 — sample_data.csv 파싱 결과. */
+export interface SampleCoursesResponse {
+  courses: Course[];
+  source: string;
+}
+
+/** 샘플 강의 카탈로그 조회 — GET /api/v1/timetable/sample-courses.
+ *
+ *  국민대 sample_data.csv를 백엔드가 파싱해 반환한 Course[]. 초기 로드 시
+ *  PreferenceForm의 후보 풀을 채우는 데 사용. 서버 미가용/CSV 없음이면 throw.
+ */
+export async function fetchSampleCourses(): Promise<SampleCoursesResponse> {
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl()}/timetable/sample-courses`, {
+      method: "GET",
+    });
+  } catch (networkErr) {
+    throw new ApiError(NETWORK_MESSAGE, {
+      rawDetail: networkErr instanceof Error ? networkErr.message : String(networkErr),
+    });
+  }
+  if (!response.ok) {
+    throw new ApiError(FALLBACK_MESSAGE, { status: response.status });
+  }
+  return (await response.json()) as SampleCoursesResponse;
 }

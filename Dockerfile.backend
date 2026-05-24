@@ -11,8 +11,9 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-# 앱 소스
+# 앱 소스 + 샘플 강의 카탈로그 (GET /api/v1/timetable/sample-courses 가 읽음)
 COPY app ./app
+COPY sample_data.csv ./sample_data.csv
 
 EXPOSE 8000
 
