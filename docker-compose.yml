@@ -21,6 +21,10 @@ services:
       # MVP는 DB 미연결 — supabase 사용 시점에서 채움
       SUPABASE_URL: ""
       SUPABASE_KEY: ""
+      # 자연어 → PreferenceVector 변환 (Upstage Solar). 호스트 환경의 같은 이름
+      # 환경변수가 그대로 컨테이너에 들어간다 — 비어 있으면 LLM 라우트는 503.
+      UPSTAGE_API_KEY: "${UPSTAGE_API_KEY:-}"
+      UPSTAGE_MODEL: "${UPSTAGE_MODEL:-solar-pro2}"
       PYTHONUNBUFFERED: "1"
     restart: unless-stopped
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { ApiError, fetchSampleCourses, requestTimetable } from "./api/client";
+import { NaturalLanguageInput } from "./components/NaturalLanguageInput";
 import { PreferenceForm } from "./components/PreferenceForm";
 import { ScheduleResult } from "./components/ScheduleResult";
 import { EmptyState, ErrorState, LoadingState } from "./components/States";
@@ -27,6 +28,9 @@ export default function App() {
   const [resolutionHint, setResolutionHint] = useState<string | null>(null);
   const [explanation, setExplanation] = useState<string | null>(null);
   const [isSample, setIsSample] = useState(false);
+  // PreferenceForm은 initial을 mount 시점에만 읽으므로, LLM이 새 preference를
+  // 적용했을 때 강제로 remount하려고 key용 카운터를 둠.
+  const [formVersion, setFormVersion] = useState(0);
 
   const lastPref = useRef<PreferenceVector | null>(null);
 
@@ -104,9 +108,19 @@ export default function App() {
       {/* 본문: 좌 입력 / 우 결과 (PC 우선 — product.md §2.3) */}
       <main className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[380px_minmax(0,1fr)]">
         {/* 입력 폼 */}
-        <div className="lg:sticky lg:top-6 lg:self-start">
+        <div className="lg:sticky lg:top-6 lg:self-start space-y-4">
+          {/* 자연어 입력 — LLM-A가 PreferenceVector로 변환해 폼을 채움 */}
+          <NaturalLanguageInput
+            currentPreference={samplePreference}
+            onApply={(next) => {
+              setSamplePreference(next);
+              setPoolCourses(next.courses);
+              setFormVersion((v) => v + 1);
+            }}
+          />
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <PreferenceForm
+              key={formVersion}
               initial={samplePreference}
               submitting={status === "loading"}
               onSubmit={runSolve}

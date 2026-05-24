@@ -5,8 +5,12 @@
 ## 빠른 시작 — Docker Compose (권장)
 
 ```bash
+# (선택) 자연어 입력 기능을 켜려면 Upstage Solar API 키
+export UPSTAGE_API_KEY=up_xxxxxxxxxxxxxxxxx
 docker compose up --build
 ```
+
+`UPSTAGE_API_KEY` 미설정이어도 docker compose는 떠 있습니다 — 자연어 입력만 비활성됩니다.
 
 뜨고 나면:
 
@@ -77,6 +81,10 @@ algorithm-lower-triangular/
   `GET /api/v1/timetable/sample-courses` 호출해 후보 풀을 채움
 - ✓ **슬롯별 건물 override** — 같은 강의가 요일마다 다른 건물(예: 월 본관 강의 / 수 공학관 실습)
   쓰는 경우를 A-2 호환 검사·B-3 travel_penalty에 정확히 반영
-- ⏳ LLM 자연어 설명 — `explain: true` 옵션은 수신하지만 현재 `explanation: null` 반환 (Upstage 공급자 확정 후 별도 base 변경)
+- ✓ **자연어 입력 → PreferenceVector 자동 채우기** — Upstage Solar API(`solar-pro2`)로
+  "전공 위주로 듣고 금요일은 통학이라 비워주세요. 조민호 교수님 운영체제 듣고 싶어요"
+  같은 문장을 가중치·blackout·교수 선호·필수/제외로 변환. 화면에 *이해한 항목*과
+  *이해 못 한 / 미지원 항목*을 항상 명시. `UPSTAGE_API_KEY` 미설정 시 자동 비활성
+- ⏳ LLM 자연어 *설명* (결과 해설) — `explain: true` 옵션은 수신하지만 현재 `explanation: null` 반환
 - ⏳ DB 영속화 — 후보 강의는 매 요청 본문에서 전달. Supabase 연결은 미적용 (`claude/server/db/` 설계만 존재)
 - ⏳ 건물 거리 — 현재는 후보 강의에서 자동 추출 + 다른 건물 5분 기본값. 실제 거리표는 후속 단계
