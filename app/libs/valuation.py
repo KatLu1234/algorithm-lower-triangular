@@ -51,7 +51,13 @@ def _per_course_class_weight(course: Course, prefs: PreferenceVector) -> float:
 
 
 def _per_course_building_weight(course: Course, prefs: PreferenceVector) -> float:
-    return prefs.building_weight(course.building)
+    """건물 페널티 — 강의가 쓰는 distinct 건물 각각의 가중치 합 (슬롯 단위 건물).
+
+    한 강의가 여러 건물에서 열리면 방문하는 모든 건물의 가중치를 합산한다.
+    단일 건물 강의는 기존과 동일(건물 1개 가중치).
+    """
+    distinct = {s.building for s in course.times}
+    return sum(prefs.building_weight(b) for b in distinct)
 
 
 def _per_course_time_penalty(course: Course, prefs: PreferenceVector) -> float:
@@ -81,7 +87,9 @@ def _schedule_total_travel(
     by_day: dict[Weekday, list[tuple[int, str]]] = {}
     for c in courses:
         for s in c.times:
+
             by_day.setdefault(s.day, []).append((s.start_minute, s.resolve_building(c.building)))
+
     total = 0
     for day, entries in by_day.items():
         entries.sort()
@@ -123,7 +131,7 @@ def _build_breakdown(
     over = max(0, active_days - prefs.target_active_days)
     compact_pen = -prefs.compactness_lambda * over
 
-    distinct_buildings = len({c.building for c in courses})
+    distinct_buildings = len({s.building for c in courses for s in c.times})
     div_pen = -prefs.diversity_lambda * distinct_buildings
 
     btb = prefs.back_to_back_preference * _back_to_back_count(courses)

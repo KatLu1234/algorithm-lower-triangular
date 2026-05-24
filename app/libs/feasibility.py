@@ -98,6 +98,7 @@ def build_compatibility(
 
     이동 시간은 *슬롯 쌍 단위*로 산정. 같은 강의도 슬롯마다 건물이 다를 수 있으므로
     (TimeSlot.building override) 각 (sa, sb) 쌍에서 실제 건물 거리를 룩업한다.
+
     """
     compat: dict[tuple[CourseId, CourseId], bool] = {}
     n = len(candidates)
@@ -114,6 +115,7 @@ def build_compatibility(
             ):
                 compat[key] = False
                 continue
+
             conflict = False
             for sa in ci.times:
                 if conflict:
@@ -123,6 +125,7 @@ def build_compatibility(
                     if sa.overlaps(sb):
                         conflict = True
                         break
+
                     bj = sb.resolve_building(cj.building)
                     travel = _travel(bi, bj, travel_table)
                     if _travel_violation(sa, sb, travel):

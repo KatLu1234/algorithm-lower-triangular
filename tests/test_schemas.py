@@ -8,19 +8,19 @@ from app.schemas import (
 
 class TestTimeSlot:
     def test_overlap_same_day(self):
-        a = TimeSlot(day=Weekday.MON, start_minute=600, end_minute=720)
-        b = TimeSlot(day=Weekday.MON, start_minute=660, end_minute=780)
+        a = TimeSlot(day=Weekday.MON, start_minute=600, end_minute=720, building="공학관")
+        b = TimeSlot(day=Weekday.MON, start_minute=660, end_minute=780, building="공학관")
         assert a.overlaps(b)
         assert b.overlaps(a)
 
     def test_no_overlap_different_day(self):
-        a = TimeSlot(day=Weekday.MON, start_minute=600, end_minute=720)
-        b = TimeSlot(day=Weekday.TUE, start_minute=600, end_minute=720)
+        a = TimeSlot(day=Weekday.MON, start_minute=600, end_minute=720, building="공학관")
+        b = TimeSlot(day=Weekday.TUE, start_minute=600, end_minute=720, building="공학관")
         assert not a.overlaps(b)
 
     def test_rejects_reverse_time(self):
         with pytest.raises(ValidationError):
-            TimeSlot(day=Weekday.MON, start_minute=720, end_minute=600)
+            TimeSlot(day=Weekday.MON, start_minute=720, end_minute=600, building="공학관")
 
     def test_resolve_building_default(self):
         s = TimeSlot(day=Weekday.MON, start_minute=540, end_minute=600)

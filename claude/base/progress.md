@@ -12,14 +12,14 @@
 | 파일 | 역할 | 최신 갱신일 |
 | ---- | ---- | ----------- |
 | `CLAUDE.md` | base 레벨 Claude 작업 지침 (인덱스 + 절차 + progress 규칙) | 2026-05-17 |
-| `architecture.md` | 계층 조합 설계 + **기술 스택** + 인터페이스 규약 | 2026-05-17 |
+| `architecture.md` | 계층 조합 설계 + **기술 스택** + 인터페이스 규약 | 2026-05-21 |
 | `product.md` | 제품 목적성·기대 효과·우선순위 (시간표 추천 균형 모델로 초기 입력 완료) | 2026-05-17 |
 | `user-experience.md` | 유저가 기대할 수 있는 경험 (빈 템플릿) | 2026-05-17 |
 | `tasks.md` | 전체 작업 칸반 인덱스 + 영역 진행 요약 + 교차 영역 카드 | 2026-05-19 |
 | `progress.md` | (현재 파일) base 문서 변경 이력 | 2026-05-19 |
 | `structure-overview.md` | 프로젝트 현재 계획의 한 장 구조도 (SVG 임베드 + 그림 읽는 법 + 위치 매핑 + 갱신 규칙) | 2026-05-19 |
 | `drafts/` | 임시 저장 영역 — 승인 전 초안 보관. 코드 결정 근거로 인용 금지. | 2026-05-17 |
-| `drafts/algorithm-tree.md` | 알고리즘 분해 트리 — 시간표 도메인 §9 확정 (locked). §1~§8 LT-as-DAG 자료는 폐기 대기 | 2026-05-17 |
+| `drafts/algorithm-tree.md` | 알고리즘 분해 트리 — 시간표 도메인 §9 확정 (locked). 건물 슬롯 단위(TimeSlot.building) 수정 반영. §1~§8 LT-as-DAG 자료는 폐기 대기 | 2026-05-24 |
 
 ## 2. 변경 이력
 
@@ -27,6 +27,9 @@
 
 | 날짜 | 파일 | 변경 유형 | 요약 | 사유 / 트리거 |
 | ---- | ---- | --------- | ---- | ------------- |
+| 2026-05-24 | `drafts/algorithm-tree.md` (+ `app/schemas/common.py`, `app/libs/feasibility.py`, `app/libs/valuation.py`, `claude/server/db/{course_time_slots,courses,index}.md`, `tests/conftest.py`, `tests/test_schemas.py`) | 스키마·명세·DB 갱신 | **건물을 슬롯 단위로 이동.** `TimeSlot.building` 필드 신설, `Course.building`은 `@computed_field` 대표 건물(최빈, 동률 시 첫 등장) 파생값으로 변경. A-2 충돌 검사가 강의 대표 건물이 아니라 **슬롯별 건물**로 이동시간 계산(한 강의가 요일마다 다른 건물 가능 — 예: 월 과기1관/화 농심국제관). v(c) 건물 페널티는 강의가 쓰는 **distinct 건물 가중치 합**, 다양성 페널티는 전 슬롯 건물 집합 기준. DB: `course_time_slots`에 `building_code`(NOT NULL, FK→buildings, +인덱스) 추가, `courses.building_code`는 nullable 대표건물(denormalized)로 완화, `index.md` §3 관계도·§4 설계결정 동기화. `algorithm-tree.md` §9.2(A-2)·§9.3(B-1·B-2)·그룹 자료에 슬롯 단위 건물 명시. 픽스처에 다건물 강의(GSFC038) 추가. py_compile 통과 + pydantic-free mock으로 distinct 합·대표 최빈·슬롯 이동충돌 로직 검증 통과(런타임 전체 검증은 Windows 환경 필요). | "각 시간마다 다른 건물을 사용하는 과목 대응 — TimeSlot.building 방식으로 플랜 변경" 지시 |
+| 2026-05-21 | `architecture.md` | 갱신 | §2.1 frontend 행 5개를 확정 스택으로 동기화: 언어 TypeScript · 프레임워크 React 18 · 빌드 Vite 5 · 스타일링 Tailwind CSS 3 · API 클라이언트 fetch 래퍼. 권위 출처는 `frontend/progress.md` §1(같은 응답에서 §1·§3 함께 갱신); 본 표는 청사진 동기화. | 프론트 스택 1차 확정 — 시간표 생성 페이지(입력 폼 + 주간 격자) 구현 착수, 사용자 승인 |
+| 2026-05-19 | `app/schemas/common.py`, `app/schemas/preferences.py`, `app/schemas/selection.py`, `app/schemas/__init__.py`, `drafts/algorithm-tree.md` | 스키마 확장 + 명세 갱신 | **분반·교수 차원 추가** (안전 순서 step 1). Course에 옵셔널 3개 필드(`course_group_id`·`section`·`professor`) + 같은 group_id 분반은 상호 배타. PreferenceVector에 옵셔널 3개(`must_include_groups`·`exclude_groups`·`professor_preferences`) + `professor_weight()`·`courses_in_group()` 헬퍼 + 중복 ID 검사 + 그룹 정합성 검사. `InfeasibilityReason`에 `MUST_INCLUDE_GROUP_EMPTY`·`GROUP_PAIR_CONFLICT` 추가. `InfeasibilityReport.offending_group_ids` 필드 추가. `StageCode`에 `A1_GROUP_EXCLUDED`·`A2_GROUP_DUPLICATE`·`B3_GROUP_LOSER` 추가. v(c) 식에 교수 가중치 항 추가. drafts/algorithm-tree.md §9.2~§9.4 명세를 그룹 처리 반영해 갱신 (A-2 그룹 양립 불가, B-3 그룹 유일성 제약, C-3 새 사유 코드). | "교수가 다른 경우 시간이 다른 두 개의 같은 과목 처리" 지시 |
 | 2026-05-19 | `app/schemas/common.py`, `app/schemas/preferences.py`, `app/schemas/__init__.py` | 스키마 확장 | **Requirement 직교 차원 추가** (base/CLAUDE.md §3.2 안전 순서 step 1). `Requirement` enum 신설(REQUIRED·ELECTIVE·OPTIONAL) · `Course.requirement: Optional[Requirement] = None` 옵셔널 필드 추가 · `PreferenceVector.requirement_weights: dict[Requirement, float]` 옵셔널 필드 + `requirement_weight()` 헬퍼 추가 · `__init__.py`에 Requirement 노출. 기존 데이터·호출 100% 호환 (모두 옵셔널). 전공 필수 vs 전공 선택 같은 세분화를 Category와 직교 차원으로 표현 가능. 라우트·프론트엔드 변경은 향후 안전 순서 step 2~3으로 진행. | "전공 필수/선택/교양 구분 기능 — 옵션 (다) 직교 차원으로 확장" 지시 |
 | 2026-05-19 | `structure-overview.md` | 신규 | 프로젝트 현재 계획의 한 장 구조도 신설. SVG 임베드(viewBox 1000×670) + 4패널(좌상 기준결정·우상 알고리즘트리 ✓확정·좌하 구현·우하 영역+TBD) + 상태기호 4종 범례 + 그림 읽는 법 + 위치 매핑 표 + 갱신 규칙. algorithm-tree.md §9 확정 처리 직후 상태 반영. | "구조도 만들어 base에 저장" 지시 |
 | 2026-05-19 | `tasks.md` | 갱신 | §4 영역별 진행 요약 표에서 `llm-include` TODO `0 → 1` 동기화. `llm-include/tasks.md` §2 TODO에 `[I-01] Upstage Solar API 조사 및 도메인 자료 작성` 카드 추가에 따른 보드 카운트 갱신. | 사용자 지시: "Upstage Solar API 조사·사용법을 AI로 `claude/llm-include`에 Claude 읽기 좋은 형태로 상세 작성하는 할 일 지정" |
