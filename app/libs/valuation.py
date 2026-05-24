@@ -77,11 +77,11 @@ def _schedule_total_travel(
     courses: list[Course],
     feas: FeasibilityResult,
 ) -> int:
-    """B-2 룩업 — 동일 요일 인접 슬롯 사이 이동 시간 합."""
+    """B-2 룩업 — 동일 요일 인접 슬롯 사이 이동 시간 합. 슬롯 단위 building override 우선."""
     by_day: dict[Weekday, list[tuple[int, str]]] = {}
     for c in courses:
         for s in c.times:
-            by_day.setdefault(s.day, []).append((s.start_minute, c.building))
+            by_day.setdefault(s.day, []).append((s.start_minute, s.resolve_building(c.building)))
     total = 0
     for day, entries in by_day.items():
         entries.sort()

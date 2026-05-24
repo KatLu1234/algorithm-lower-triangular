@@ -59,13 +59,24 @@ class Requirement(str, Enum):
 
 
 class TimeSlot(BaseModel):
-    """한 강의의 한 요일·시간 구간."""
+    """한 강의의 한 요일·시간 구간.
+
+    `building`은 *슬롯 단위 override*. None이면 호출자가 Course.building을 기본으로 사용.
+    같은 강의가 요일마다 다른 건물(예: 월 본관 강의 / 수 공학관 실습)을 쓰는 경우에만 채움.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     day: Weekday
     start_minute: int = Field(ge=0, lt=24 * 60, description="자정 기준 분 (0–1439)")
     end_minute: int = Field(ge=1, le=24 * 60, description="자정 기준 분 (1–1440)")
+    building: Optional["BuildingCode"] = Field(
+        default=None,
+        description=(
+            "슬롯 단위 건물 override. None이면 Course.building 사용. "
+            "A-2 이동시간 검사·B-3 travel_penalty가 이 값을 우선 사용."
+        ),
+    )
 
     @model_validator(mode="after")
     def _check_order(self) -> "TimeSlot":
@@ -81,6 +92,10 @@ class TimeSlot(BaseModel):
         if self.day != other.day:
             return False
         return self.start_minute < other.end_minute and other.start_minute < self.end_minute
+
+    def resolve_building(self, course_default: "BuildingCode") -> "BuildingCode":
+        """슬롯 override 우선, 없으면 호출자가 넘긴 Course.building."""
+        return self.building if self.building is not None else course_default
 
 
 class BlackoutWindow(BaseModel):

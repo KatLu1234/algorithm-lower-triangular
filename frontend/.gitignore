@@ -1,0 +1,16 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+dist-ssr/
+
+# local env (서버 URL 같은 비-비밀 값만 .env.local에 둔다 — 시크릿 금지)
+.env.local
+*.local
+
+# editor / os
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+*.log
