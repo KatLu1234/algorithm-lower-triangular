@@ -71,6 +71,12 @@ algorithm-lower-triangular/
 - ✓ 프론트에서 강의 후보·학점·중요도·blackout 입력 → 백엔드가 top-K 시간표 + 점수 분해 + 포함/배제 사유 반환
 - ✓ A-B-C 트리 그대로 (Feasibility → Valuation → Selection), 그룹·교수 차원 반영
 - ✓ Infeasibility 응답 (필수 강의 충돌·학점 한도 등) — 사용자 친화 hint 포함
+- ✓ **국민대 `sample_data.csv` 파싱** — `time_room` 필드(`화(6-8) 석원경상관 112호` 등)를
+  `TimeSlot`으로 변환. 1교시=9시, n교시=(n+8)시 매핑. 같은 `cour_cd`의 분반들은 자동으로
+  같은 `course_group_id`로 묶여 그룹 배타 규칙이 그대로 적용됨. 프론트는 마운트 시
+  `GET /api/v1/timetable/sample-courses` 호출해 후보 풀을 채움
+- ✓ **슬롯별 건물 override** — 같은 강의가 요일마다 다른 건물(예: 월 본관 강의 / 수 공학관 실습)
+  쓰는 경우를 A-2 호환 검사·B-3 travel_penalty에 정확히 반영
 - ⏳ LLM 자연어 설명 — `explain: true` 옵션은 수신하지만 현재 `explanation: null` 반환 (Upstage 공급자 확정 후 별도 base 변경)
 - ⏳ DB 영속화 — 후보 강의는 매 요청 본문에서 전달. Supabase 연결은 미적용 (`claude/server/db/` 설계만 존재)
 - ⏳ 건물 거리 — 현재는 후보 강의에서 자동 추출 + 다른 건물 5분 기본값. 실제 거리표는 후속 단계
