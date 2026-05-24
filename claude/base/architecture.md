@@ -38,11 +38,11 @@
 
 | 계층 | 분류 | 선택 | 비고 |
 | ---- | ---- | ---- | ---- |
-| `frontend/` | 언어 | TBD (TypeScript / JavaScript) | [`frontend/progress.md`](../frontend/progress.md) §1 참조 |
-| `frontend/` | 프레임워크 | TBD (React / Vue / Svelte / 정적 HTML) | |
-| `frontend/` | 빌드 / 번들러 | TBD (Vite / Next.js 등) | |
-| `frontend/` | 스타일링 | TBD (Tailwind / CSS Modules 등) | |
-| `frontend/` | API 클라이언트 | TBD (fetch / axios / TanStack Query) | 서버 `/api/v1` 호출용 |
+| `frontend/` | 언어 | TypeScript | 권위 출처 [`frontend/progress.md`](../frontend/progress.md) §1 (2026-05-21 1차 확정) |
+| `frontend/` | 프레임워크 | React 18 | |
+| `frontend/` | 빌드 / 번들러 | Vite 5 | SSR 불필요 |
+| `frontend/` | 스타일링 | Tailwind CSS 3 | |
+| `frontend/` | API 클라이언트 | fetch + 얇은 래퍼 | `src/api/client.ts`, `{detail, code}` 에러 표준 처리 |
 | `server/` | 언어 | Python 3 | `.venv/` 가상환경 |
 | `server/` | 웹 프레임워크 | FastAPI + Starlette | `app/main.py` |
 | `server/` | ASGI 서버 | TBD (보통 `uvicorn`) | 실행 명령 확정 시 progress.md에 기록 |

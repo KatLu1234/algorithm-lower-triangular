@@ -13,8 +13,8 @@ do_not_update_for:
 authoritative_for:
   - 프론트엔드 영역의 현재 기술 스택 (§1)
   - 프론트엔드 영역 한정 별도 지침 (§2)
-stack_status: 미확정
-last_updated: 2026-05-17
+stack_status: 1차 확정 (2026-05-21)
+last_updated: 2026-05-21
 ---
 
 # frontend/progress.md — 프론트엔드 영역 진행 이력
@@ -22,19 +22,19 @@ last_updated: 2026-05-17
 ## 1. 현재 사용 기술 스택 (스냅샷)
 
 **PURPOSE**: 영역의 권위 있는 기술 스택 상태.
-**STATUS**: **아직 확정되지 않음.** 결정되는 대로 채울 것.
+**STATUS**: **1차 확정 (2026-05-21).** 시간표 생성 페이지 구현을 위해 React 기반 스택 확정. 코드는 프로젝트 루트 `frontend/` 디렉터리.
 
 | 분류 | 선택 | 비고 |
 | ---- | ---- | ---- |
-| 언어 | (TBD: TypeScript / JavaScript) | |
-| 프레임워크 | (TBD: React / Vue / Svelte / 정적 HTML) | |
-| 번들러 / 빌드 | (TBD: Vite / Next.js / 기타) | |
-| 라우팅 | (TBD) | SPA 여부 결정 후 |
-| 상태 관리 | (TBD) | |
-| 스타일링 | (TBD: Tailwind / CSS Modules / styled-components) | |
-| UI 컴포넌트 | (TBD) | |
-| API 클라이언트 | (TBD: fetch / axios / TanStack Query) | 서버 `/api/v1` 호출 |
-| 배포 | (TBD) | |
+| 언어 | TypeScript | 시간표/동선 데이터 구조가 복잡 → 타입 안정성 (team-guide §3 권장) |
+| 프레임워크 | React 18 | |
+| 번들러 / 빌드 | Vite 5 | SSR 불필요 → Vite로 충분 |
+| 라우팅 | 단일 페이지 (라우터 미도입) | 화면 1개로 시작. 화면이 늘면 react-router 검토 |
+| 상태 관리 | React 로컬 상태 (useState) | 전역 상태가 필요해지면 재검토 |
+| 스타일링 | Tailwind CSS 3 | |
+| UI 컴포넌트 | 자체 컴포넌트 | 외부 UI 라이브러리 미도입 |
+| API 클라이언트 | fetch + 얇은 래퍼 (`src/api/client.ts`) | 서버 `/api/v1` 호출, `{detail, code}` 에러 표준 처리 |
+| 배포 | (TBD) | 정적 호스팅 예정 |
 
 ---
 
@@ -55,6 +55,7 @@ last_updated: 2026-05-17
 
 | 날짜 | 항목 | 변경 | 사유 / 트리거 |
 | ---- | ---- | ---- | ------------- |
+| 2026-05-21 | 스택 추가 | frontend 스택 1차 확정: TypeScript + React 18 + Vite 5 + Tailwind CSS 3 + fetch 래퍼. 단일 페이지(라우터 미도입), 로컬 상태. 프로젝트 루트 `frontend/` 디렉터리에 부트스트랩. `architecture.md` §2.1 frontend 행 동기화. | 시간표 생성 페이지(입력 폼 + 주간 격자) 구현 착수, 사용자 승인 |
 | 2026-05-17 | 지침 추가 | `frontend/tasks.md` 신설 — 프론트엔드 영역 작업 칸반(TODO/DOING/DONE) + 카드 형식 + 영역 간 승격 기록. 스택 미확정 단계의 카드는 owner 옆 "스택 결정 후 착수" 표기 컨벤션 도입 | 팀원 작업 확인 보드 도입 |
 | 2026-05-17 | 지침 추가 | `frontend/team-guide.md` 신설 — 프론트엔드 팀원의 영역 진입 문서. 스택 미정이므로 §3은 결정 시 체크리스트 형식 | 영역 팀원 온보딩 통일 |
 | 2026-05-17 | 진행 파일 | `frontend/progress.md` 신설, 스택 미정 상태로 스냅샷 작성 | "각 scheme에 진행상황 파일" 지시 |

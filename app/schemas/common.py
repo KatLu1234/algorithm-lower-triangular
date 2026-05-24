@@ -11,7 +11,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 CourseId = str
 """강의 코드 (예: 'CS101-01-홍교수')."""
@@ -59,13 +59,14 @@ class Requirement(str, Enum):
 
 
 class TimeSlot(BaseModel):
-    """한 강의의 한 요일·시간 구간."""
+    """한 강의의 한 요일·시간 구간. 건물은 슬롯마다 다를 수 있어 여기에 둔다."""
 
     model_config = ConfigDict(frozen=True)
 
     day: Weekday
     start_minute: int = Field(ge=0, lt=24 * 60, description="자정 기준 분 (0–1439)")
     end_minute: int = Field(ge=1, le=24 * 60, description="자정 기준 분 (1–1440)")
+    building: BuildingCode = Field(description="이 수업 시간이 열리는 건물 코드")
 
     @model_validator(mode="after")
     def _check_order(self) -> "TimeSlot":
@@ -120,9 +121,10 @@ class Course(BaseModel):
 
     id: CourseId
     name: str
-    times: list[TimeSlot] = Field(min_length=1, description="강의가 열리는 모든 시간대")
+    times: list[TimeSlot] = Field(
+        min_length=1, description="강의가 열리는 모든 시간대 (각 슬롯에 건물 포함)"
+    )
     credit: int = Field(ge=1, description="학점 (양수)")
-    building: BuildingCode
     category: Category
     requirement: Optional[Requirement] = Field(
         default=None,
@@ -145,6 +147,20 @@ class Course(BaseModel):
         default=None,
         description="담당 교수 이름. 표시용 + (선택) professor_preferences 룩업 키.",
     )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def building(self) -> BuildingCode:
+        """대표 건물 (파생값). 실제 건물은 각 TimeSlot에 있다.
+
+        표시·직렬화용 대표값으로 가장 자주 등장하는 건물을 돌려준다
+        (동률이면 첫 등장 슬롯 기준). times는 min_length=1이라 항상 존재한다.
+        점수의 건물 페널티는 이 대표값이 아니라 슬롯별 distinct 건물 합으로 계산된다.
+        """
+        counts: dict[BuildingCode, int] = {}
+        for s in self.times:
+            counts[s.building] = counts.get(s.building, 0) + 1
+        return max(counts, key=lambda b: counts[b])
 
 
 class InfeasibilityReason(str, Enum):
