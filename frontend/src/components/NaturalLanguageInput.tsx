@@ -72,7 +72,7 @@ export function NaturalLanguageInput({ currentPreference, onApply }: Props) {
   }
 
   return (
-    <section className="rounded-lg border border-cream-300 bg-white p-4 shadow-sm">
+    <section className="min-w-0 rounded-lg border border-cream-300 bg-white p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-ink">자연어로 시간표 설정</h2>
         <button

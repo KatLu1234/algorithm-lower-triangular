@@ -107,8 +107,9 @@ export default function App() {
 
       {/* 본문: 좌 입력 / 우 결과 (PC 우선 — product.md §2.3) */}
       <main className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[380px_minmax(0,1fr)]">
-        {/* 입력 폼 */}
-        <div className="lg:sticky lg:top-6 lg:self-start space-y-4">
+        {/* 입력 폼. min-w-0이 빠지면 grid item이 자식의 intrinsic width로 자라
+            380px 트랙을 깨뜨림 — 자식의 truncate/overflow 효과가 안 먹음 */}
+        <div className="lg:sticky lg:top-6 lg:self-start space-y-4 min-w-0">
           {/* 자연어 입력 — LLM-A가 PreferenceVector로 변환해 폼을 채움 */}
           <NaturalLanguageInput
             currentPreference={samplePreference}

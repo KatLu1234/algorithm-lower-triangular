@@ -1,0 +1,6 @@
+from_code,to_code,minutes,is_direct
+농심국제관,과학기술1관,2,true
+과학기술1관,과학기술2관,2,true
+과학기술2관,공공정책관,1,true
+공공정책관,석원경상관,2,true
+석원경상관,문화스포츠관,1,true
