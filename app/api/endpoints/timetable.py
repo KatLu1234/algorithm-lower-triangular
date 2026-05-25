@@ -24,6 +24,8 @@ from app.libs.llm_client import (
     complete,
 )
 from app.libs.llm_context import build_preference_extraction
+from app.libs.buildings_loader import load_building_graph
+from app.libs.floyd_warshall import INF as _FW_INF
 from app.libs.timeroom_parser import load_courses_from_csv
 from app.libs.timetable import recommend
 from app.schemas import (
@@ -52,11 +54,15 @@ router = APIRouter()
 # 추후 DB(building_travel_times) 또는 app/core/config.py 상수로 대체.
 _DEFAULT_INTER_BUILDING_MIN = 5
 
-# 샘플 CSV — 컨테이너에서는 /srv/sample_data.csv (Dockerfile.backend 참고).
-# 로컬 dev에서는 프로젝트 루트의 sample_data.csv.
-_SAMPLE_CSV_PATH = Path(__file__).resolve().parents[3] / "sample_data.csv"
+# 정적 데이터 CSV — 컨테이너에서는 /srv/ 루트 (Dockerfile.backend 참고).
+# 로컬 dev에서는 프로젝트 루트.
+_ROOT = Path(__file__).resolve().parents[3]
+_SAMPLE_CSV_PATH = _ROOT / "sample_data.csv"
+_BUILDINGS_CSV_PATH = _ROOT / "buildings.csv"
+_TRAVEL_TIMES_CSV_PATH = _ROOT / "building_travel_times.csv"
 
 _sample_courses_cache: list[Course] | None = None
+_building_graph_cache: tuple[list[BuildingCode], list[list[int]]] | None = None
 
 
 def _load_sample_courses() -> list[Course]:
@@ -68,6 +74,23 @@ def _load_sample_courses() -> list[Course]:
         else:
             _sample_courses_cache = []
     return _sample_courses_cache
+
+
+def _load_building_graph() -> tuple[list[BuildingCode], list[list[int]]]:
+    """buildings.csv + building_travel_times.csv 1회 로드 후 캐시.
+
+    두 파일 중 하나라도 없으면 빈 master로 동작 — _building_grid가 기존 5분 일괄
+    행렬로 fallback.
+    """
+    global _building_graph_cache
+    if _building_graph_cache is None:
+        if _BUILDINGS_CSV_PATH.exists() and _TRAVEL_TIMES_CSV_PATH.exists():
+            _building_graph_cache = load_building_graph(
+                _BUILDINGS_CSV_PATH, _TRAVEL_TIMES_CSV_PATH
+            )
+        else:
+            _building_graph_cache = ([], [])
+    return _building_graph_cache
 
 
 class TimetableRequest(BaseModel):
@@ -85,20 +108,54 @@ class TimetableResponse(BaseModel):
 
 
 def _building_grid(preference: PreferenceVector) -> tuple[list[BuildingCode], list[list[int]]]:
-    """후보 강의에서 사용된 건물을 모아 거리 행렬 생성. 슬롯 단위 building override도 포함."""
+    """후보 강의에서 사용된 건물 ∪ master(buildings.csv) → 거리 행렬.
+
+    CSV가 있으면:
+      • master의 직접 간선 그대로 → Floyd-Warshall(B-2)이 간접 경로 산출
+      • master에 없는 건물은 5분 fallback으로 모든 건물과 보수적 연결
+    CSV 없으면:
+      • 후보 강의에서 사용된 건물만 모아 일괄 5분 (기존 동작)
+    """
     used: set[BuildingCode] = set()
     for c in preference.courses:
         used.add(c.building)
         for s in c.times:
             if s.building is not None:
                 used.add(s.building)
-    buildings = sorted(used)
-    n = len(buildings)
-    walk = [
-        [0 if i == j else _DEFAULT_INTER_BUILDING_MIN for j in range(n)]
-        for i in range(n)
-    ]
-    return buildings, walk
+
+    master_codes, master_matrix = _load_building_graph()
+
+    if not master_codes:
+        buildings = sorted(used)
+        n = len(buildings)
+        walk = [
+            [0 if i == j else _DEFAULT_INTER_BUILDING_MIN for j in range(n)]
+            for i in range(n)
+        ]
+        return buildings, walk
+
+    # master 우선, preference에 등장한 새 건물(미등록)도 합집합으로 추가
+    all_codes = sorted(set(master_codes) | used)
+    n = len(all_codes)
+    idx = {c: i for i, c in enumerate(all_codes)}
+    walk = [[0 if i == j else _FW_INF for j in range(n)] for i in range(n)]
+
+    # master 직접 간선 복사 (대각 제외)
+    for ma, ca in enumerate(master_codes):
+        for mb, cb in enumerate(master_codes):
+            if ma != mb:
+                walk[idx[ca]][idx[cb]] = master_matrix[ma][mb]
+
+    # CSV 미등록 건물: 모든 건물과 _DEFAULT_INTER_BUILDING_MIN으로 보수적 연결 (대칭)
+    unknown = used - set(master_codes)
+    for c in unknown:
+        i = idx[c]
+        for j in range(n):
+            if i != j and walk[i][j] >= _FW_INF:
+                walk[i][j] = _DEFAULT_INTER_BUILDING_MIN
+                walk[j][i] = _DEFAULT_INTER_BUILDING_MIN
+
+    return all_codes, walk
 
 
 class SampleCoursesResponse(BaseModel):

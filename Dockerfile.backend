@@ -11,9 +11,13 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-# 앱 소스 + 샘플 강의 카탈로그 (GET /api/v1/timetable/sample-courses 가 읽음)
+# 앱 소스 + 정적 데이터 CSV (엔드포인트가 부팅 시 1회 로드 후 캐시)
+#   - sample_data.csv: 국민대 강의 카탈로그
+#   - buildings.csv + building_travel_times.csv: 캠퍼스 건물 + 직접 도보 거리
 COPY app ./app
 COPY sample_data.csv ./sample_data.csv
+COPY buildings.csv ./buildings.csv
+COPY building_travel_times.csv ./building_travel_times.csv
 
 # LLM-A 프롬프트 (app/libs/llm_context.py가 런타임에 읽음). 영역 분리 규칙
 # (architecture.md §3.3)에 따라 .md/.json 데이터 자산만 포함, 코드는 제외.

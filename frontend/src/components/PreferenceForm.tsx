@@ -174,34 +174,42 @@ export function PreferenceForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
-      {/* 강의 후보 */}
-      <Section title="강의 후보" desc="듣고 싶은 강의를 모두 추가하세요. 시스템이 이 안에서 조합을 고릅니다.">
-        <ul className="flex flex-col gap-2">
-          {courses.map((course) => (
-            <CourseRow
-              key={course.id}
-              course={course}
-              importance={importance[course.id] ?? 3}
-              must={mustInclude.has(course.id)}
-              excluded={exclude.has(course.id)}
-              onImportance={(v) => setImportance((p) => ({ ...p, [course.id]: v }))}
-              onToggleMust={() => {
-                setMustInclude((p) => toggle(p, course.id));
-                setExclude((p) => toggledOff(p, course.id));
-              }}
-              onToggleExclude={() => {
-                setExclude((p) => toggle(p, course.id));
-                setMustInclude((p) => toggledOff(p, course.id));
-              }}
-              onRemove={() => removeCourse(course.id)}
-            />
-          ))}
-          {courses.length === 0 && (
-            <li className="rounded-lg border border-dashed border-slate-300 px-3 py-6 text-center text-sm text-ink-faint">
-              아직 추가한 강의가 없습니다.
-            </li>
-          )}
-        </ul>
+      {/* 강의 후보 — 스크롤 컨테이너 (긴 카탈로그 대비) */}
+      <Section
+        title={`강의 후보 (${courses.length}개)`}
+        desc="듣고 싶은 강의를 모두 추가하세요. 시스템이 이 안에서 조합을 고릅니다."
+      >
+        <div
+          className="max-h-[24rem] min-w-0 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/50 p-2"
+          aria-label="강의 후보 목록"
+        >
+          <ul className="flex min-w-0 flex-col gap-2">
+            {courses.map((course) => (
+              <CourseRow
+                key={course.id}
+                course={course}
+                importance={importance[course.id] ?? 3}
+                must={mustInclude.has(course.id)}
+                excluded={exclude.has(course.id)}
+                onImportance={(v) => setImportance((p) => ({ ...p, [course.id]: v }))}
+                onToggleMust={() => {
+                  setMustInclude((p) => toggle(p, course.id));
+                  setExclude((p) => toggledOff(p, course.id));
+                }}
+                onToggleExclude={() => {
+                  setExclude((p) => toggle(p, course.id));
+                  setMustInclude((p) => toggledOff(p, course.id));
+                }}
+                onRemove={() => removeCourse(course.id)}
+              />
+            ))}
+            {courses.length === 0 && (
+              <li className="rounded-lg border border-dashed border-slate-300 px-3 py-6 text-center text-sm text-ink-faint">
+                아직 추가한 강의가 없습니다.
+              </li>
+            )}
+          </ul>
+        </div>
 
         {adding ? (
           <CourseEditor
@@ -249,8 +257,12 @@ export function PreferenceForm({
         )}
       </Section>
 
-      {/* 가중치 */}
-      <Section title="조정 (선택)" desc="값이 클수록 해당 항목을 더 중요하게 봅니다.">
+      {/* 가중치 — 옵션 영역. accent로 다른 섹션과 시각적으로 구분 */}
+      <Section
+        title="⚙️ 점수 조정 옵션"
+        desc="값이 클수록 해당 항목을 더 중요하게 봅니다. 자연어 입력으로도 자동 설정됩니다."
+        accent
+      >
         <div className="grid gap-4 sm:grid-cols-3">
           <NumberField
             label="목표 등교 요일 수"
@@ -278,8 +290,12 @@ export function PreferenceForm({
         </div>
       </Section>
 
-      {/* Blackout */}
-      <Section title="제외 시간대" desc="통학·알바 등 절대 강의를 넣지 않을 시간.">
+      {/* Blackout — 옵션 영역 */}
+      <Section
+        title="🚫 제외 시간대 (blackout)"
+        desc="통학·알바 등 절대 강의를 넣지 않을 시간. 추가한 만큼 누적됩니다."
+        accent
+      >
         <BlackoutEditor windows={blackouts} onChange={setBlackouts} />
       </Section>
 
@@ -333,14 +349,31 @@ function Section({
   title,
   desc,
   children,
+  accent = false,
 }: {
   title: string;
   desc?: string;
   children: ReactNode;
+  /** true면 옅은 강조 배경 + 테두리 — "조정 (선택)" 같은 옵션 영역에 사용 */
+  accent?: boolean;
 }) {
+  // fieldset은 기본 min-inline-size: min-content이라 flex/grid에서 줄어들지 않음.
+  // min-w-0으로 명시 해제해야 자식의 truncate·overflow가 정상 작동.
+  const baseCls = "flex min-w-0 flex-col gap-2.5";
+  const accentCls = accent
+    ? "rounded-xl border border-brand-200 bg-brand-50/60 px-3 py-3"
+    : "";
   return (
-    <fieldset className="flex flex-col gap-2.5">
-      <legend className="text-sm font-semibold text-ink">{title}</legend>
+    <fieldset className={`${baseCls} ${accentCls}`}>
+      <legend
+        className={
+          accent
+            ? "px-1 text-sm font-semibold text-brand-700"
+            : "text-sm font-semibold text-ink"
+        }
+      >
+        {title}
+      </legend>
       {desc && <p className="-mt-1 text-xs text-ink-faint">{desc}</p>}
       {children}
     </fieldset>
@@ -380,13 +413,14 @@ function CourseRow({
 
   return (
     <li
-      className={`rounded-lg border px-3 py-2.5 transition ${
+      className={`min-w-0 rounded-lg border px-3 py-2.5 transition ${
         excluded ? "border-slate-200 bg-slate-50 opacity-60" : "border-slate-200 bg-white"
       }`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-ink">
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        {/* min-w-0 + flex-1: 부모(li)가 좁아도 텍스트가 truncate되도록 폭 제약 */}
+        <div className="min-w-0 flex-1">
+          <p className="break-words text-sm font-medium text-ink">
             {course.name}
             {course.section ? <span className="text-ink-faint"> · {course.section}분반</span> : null}
             <span className="ml-1.5 text-xs font-normal text-ink-faint">{course.credit}학점</span>
