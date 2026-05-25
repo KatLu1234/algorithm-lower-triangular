@@ -29,10 +29,10 @@
 
 ## 2. 한 solve 요청의 처리 파이프라인
 
-`POST /api/v1/solve` (선호 설정 → 상위 N개 시간표 + 설명) 한 건의 흐름. 괄호는 캐시/영속화 지점.
+`POST /api/v1/timetable/solve` (선호 설정 → 상위 N개 시간표 + 설명) 한 건의 흐름. 괄호는 캐시/영속화 지점.
 
 ```
-1. endpoints/solve.py
+1. endpoints/timetable.py
    └ PreferenceVector 검증 (app/schemas) ............................ <5ms
 2. crud: 강의 카탈로그 로드 (term 기준 courses + course_time_slots)
    └ [CACHE A: 카탈로그] hit→메모리, miss→Supabase 1쿼리 ............ cold ~100ms / warm <10ms
@@ -204,7 +204,7 @@ team-guide §4 책임 매핑을 따른다. 신규로 제안하는 자리만:
 | 캐시 유틸(키 생성·LRU·TTL·버전 훅) | `app/core/cache.py` | 순수 함수 밖. libs는 손대지 않음 |
 | 타임아웃·세마포어·캐시 TTL 상수 | `app/core/config.py` | 매직넘버 금지 |
 | 카탈로그 로드(+캐시) | `app/crud/catalog.py` | term 단위 배치 로드 |
-| solve 오케스트레이션 | `app/api/endpoints/solve.py` | 검증→로드→solve→LLM→영속화 위임만 |
+| solve 오케스트레이션 | `app/api/endpoints/timetable.py` | 검증→로드→solve→LLM→영속화 위임만 |
 | 관측(미들웨어·correlation id) | `app/core/` 미들웨어 | 구조화 로깅 |
 
 순수 알고리즘(`app/libs/floyd_warshall.py`, `timetable.py` 등)과 LLM 단일 진입점
@@ -219,7 +219,7 @@ team-guide §4 책임 매핑을 따른다. 신규로 제안하는 자리만:
 - **DB 컬럼 추가(선택)**: `solve_runs`에 `request_signature text`(C·D 캐시 조회 키),
   `llm_ms numeric`(LLM 시간) 추가를 제안. 추가 시 [`db/solve_runs.md`](./db/solve_runs.md)와
   안전 순서(옵셔널 우선, base/CLAUDE.md §3.2) 동기화.
-- **신규 엔드포인트 계약**: `/api/v1/solve`, `/healthz`, `/readyz`는 frontend 계약 → base 변경
+- **신규 엔드포인트 계약**: `/api/v1/timetable/solve`, `/healthz`, `/readyz`는 frontend 계약 → base 변경
   (base/CLAUDE.md §1) 승인 대상.
 
 ## 8. 미해결 / 다음 단계

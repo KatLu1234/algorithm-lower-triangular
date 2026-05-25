@@ -75,9 +75,9 @@ algorithm-lower-triangular/
 
 | 종류                | 규칙                | 예시                              |
 | ------------------- | ------------------- | --------------------------------- |
-| 모듈/파일           | `snake_case.py`     | `lower_triangular.py`, `item.py`  |
+| 모듈/파일           | `snake_case.py`     | `timetable.py`, `feasibility.py`  |
 | 패키지(디렉터리)    | `snake_case` 또는 짧은 단어 | `crud`, `schemas`, `endpoints` |
-| 함수/변수           | `snake_case`        | `solve_lower_triangular(matrix)`  |
+| 함수/변수           | `snake_case`        | `recommend(prefs, building_codes)` |
 | 상수                | `UPPER_SNAKE_CASE`  | `MAX_MATRIX_SIZE = 1024`          |
 | 클래스 / Pydantic   | `PascalCase`        | `ItemCreate`, `LowerTriSolution`  |
 | 비공개(모듈 내부)   | `_leading_underscore` | `_validate_matrix(...)`         |

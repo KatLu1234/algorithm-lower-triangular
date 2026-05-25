@@ -150,6 +150,7 @@ export function buildSamplePreference(): PreferenceVector {
     target_active_days: 4,
     diversity_lambda: 0.0,
     back_to_back_preference: 0.0,
+    min_break_minutes: 0,
   };
 }
 
@@ -180,6 +181,7 @@ export function buildPreferenceFromCourses(courses: Course[]): PreferenceVector 
     target_active_days: 5,
     diversity_lambda: 0.0,
     back_to_back_preference: 0.0,
+    min_break_minutes: 0,
   };
 }
 

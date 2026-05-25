@@ -39,7 +39,7 @@
 반대로 다음은 base 변경이 **아니다** — 해당 영역의 지침만 따라 진행한다.
 
 - 한 라우트 함수의 내부 로직 수정 (계약 변경 없음).
-- 알고리즘 본체(`app/libs/lower_triangular.py`) 구현 개선.
+- 알고리즘 본체(`app/libs/timetable.py`·`feasibility.py`·`valuation.py`·`selection.py`) 구현 개선.
 - 프롬프트 문구 *표현* 다듬기 (메시지 구조·필드는 동일).
 - 프론트엔드 화면 스타일링.
 

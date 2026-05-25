@@ -85,19 +85,27 @@ def _travel(a: BuildingCode, b: BuildingCode, table: dict) -> int:
     return _LARGE_TRAVEL
 
 
-def _travel_violation(sa: TimeSlot, sb: TimeSlot, travel: int) -> bool:
+def _travel_violation(
+    sa: TimeSlot, sb: TimeSlot, travel: int, min_break: int = 0
+) -> bool:
+    """같은 날 두 슬롯이 양립 불가인지. 필요한 간격은 max(이동시간, 최소 쉬는시간).
+
+    min_break=0 이면 기존 동작(이동시간만)과 동일하다.
+    """
     if sa.day != sb.day:
         return False
+    required = travel if travel >= min_break else min_break
     if sa.end_minute <= sb.start_minute:
-        return sa.end_minute + travel > sb.start_minute
+        return sa.end_minute + required > sb.start_minute
     if sb.end_minute <= sa.start_minute:
-        return sb.end_minute + travel > sa.start_minute
+        return sb.end_minute + required > sa.start_minute
     return False
 
 
 def build_compatibility(
     candidates: list[Course],
     travel_table: dict[tuple[BuildingCode, BuildingCode], int],
+    min_break: int = 0,
 ) -> dict[tuple[CourseId, CourseId], bool]:
     """A-2 — 시간 겹침·이동 시간 부족 + 같은 course_group_id 검사. 키는 정렬된 (id, id).
 
@@ -133,7 +141,7 @@ def build_compatibility(
 
                     bj = sb.resolve_building(cj.building)
                     travel = _travel(bi, bj, travel_table)
-                    if _travel_violation(sa, sb, travel):
+                    if _travel_violation(sa, sb, travel, min_break):
                         conflict = True
                         break
             compat[key] = not conflict
@@ -315,7 +323,7 @@ def feasibility(
         )
 
     travel_table, _ = build_travel_table(building_codes, base_walk_minutes)
-    compat = build_compatibility(candidates, travel_table)
+    compat = build_compatibility(candidates, travel_table, prefs.min_break_minutes)
     ordered = order_by_start(candidates)
     reachable, infeas = _check_credit_reach(candidates, must_mask, compat, prefs)
 

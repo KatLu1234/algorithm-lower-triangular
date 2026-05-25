@@ -69,6 +69,14 @@ class PreferenceVector(BaseModel):
         default_factory=list,
         description="사용자 외부 일정. A-1에서 겹치는 슬롯이 하나라도 있는 강의를 통째로 제거",
     )
+    min_break_minutes: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "같은 날 연속 수업 사이에 확보할 최소 쉬는 시간(분). 0이면 비활성(기존 동작). "
+            "A-2에서 두 강의 사이 간격이 max(이동시간, min_break_minutes) 미만이면 양립 불가로 처리(하드 제약)."
+        ),
+    )
 
     # ③ 강의별 점수 가중치 (B-1에서 v(c)에 합산)
     time_penalty_grid: dict[str, float] = Field(

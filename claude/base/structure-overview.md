@@ -102,22 +102,22 @@
   <!-- ─── 좌: 구현 ─── -->
   <rect x="20" y="365" width="470" height="220" rx="10" class="panel"/>
   <text x="38" y="390" class="t-panel-title">구현  (app/)</text>
-  <text x="455" y="390" text-anchor="end" class="t-status">⏳ 대부분 대기</text>
+  <text x="455" y="390" text-anchor="end" class="t-status">✓ 대부분 구현됨</text>
 
   <rect x="38" y="402" width="434" height="36" rx="5" class="item-done"/>
   <text x="48" y="425" class="t-item-title">✓ FastAPI 골격  +  Supabase 클라이언트 (`app/db/supabase.py`)</text>
 
-  <rect x="38" y="446" width="434" height="36" rx="5" class="item-wait"/>
-  <text x="48" y="469" class="t-item-title">⏳ app/schemas/  —  PreferenceVector · FeasibilityResult · ValuationResult · SelectionResult</text>
+  <rect x="38" y="446" width="434" height="36" rx="5" class="item-done"/>
+  <text x="48" y="469" class="t-item-title">✓ app/schemas/  —  PreferenceVector · FeasibilityResult · ValuationResult · SelectionResult</text>
 
-  <rect x="38" y="490" width="434" height="36" rx="5" class="item-wait"/>
-  <text x="48" y="513" class="t-item-title">⏳ app/libs/  —  A·B·C 노드 + 12 알고리즘 (순수 함수)</text>
+  <rect x="38" y="490" width="434" height="36" rx="5" class="item-done"/>
+  <text x="48" y="513" class="t-item-title">✓ app/libs/  —  A·B·C 노드 + 9 알고리즘 구현(+옵션 3) (순수 함수)</text>
 
-  <rect x="38" y="534" width="210" height="36" rx="5" class="item-wait"/>
-  <text x="48" y="557" class="t-item-title">⏳ app/api/v1/solve-schedule</text>
+  <rect x="38" y="534" width="210" height="36" rx="5" class="item-done"/>
+  <text x="48" y="557" class="t-item-title">✓ POST /api/v1/timetable/solve</text>
 
-  <rect x="262" y="534" width="210" height="36" rx="5" class="item-wait"/>
-  <text x="272" y="557" class="t-item-title">⏳ tests/  (단위 + 통합)</text>
+  <rect x="262" y="534" width="210" height="36" rx="5" class="item-done"/>
+  <text x="272" y="557" class="t-item-title">✓ tests/  (단위)</text>
 
   <!-- ─── 우: 영역 문서 + TBD ─── -->
   <rect x="510" y="365" width="470" height="220" rx="10" class="panel"/>

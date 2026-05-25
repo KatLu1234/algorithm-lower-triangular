@@ -81,6 +81,7 @@ export function PreferenceForm({
   const [targetDays, setTargetDays] = useState(initial.target_active_days);
   const [travelLambda, setTravelLambda] = useState(initial.travel_time_lambda);
   const [compactLambda, setCompactLambda] = useState(initial.compactness_lambda);
+  const [minBreak, setMinBreak] = useState(initial.min_break_minutes ?? 0);
   const [blackouts, setBlackouts] = useState<BlackoutWindow[]>(initial.blackout_windows);
 
   const [draft, setDraft] = useState<DraftCourse>(emptyDraft());
@@ -168,6 +169,7 @@ export function PreferenceForm({
       target_active_days: targetDays,
       travel_time_lambda: travelLambda,
       compactness_lambda: compactLambda,
+      min_break_minutes: minBreak,
     };
     onSubmit(pref);
   }
@@ -286,6 +288,13 @@ export function PreferenceForm({
             max={2}
             step={0.1}
             onChange={setCompactLambda}
+          />
+          <NumberField
+            label="최소 쉬는시간(분)"
+            value={minBreak}
+            min={0}
+            max={180}
+            onChange={setMinBreak}
           />
         </div>
       </Section>

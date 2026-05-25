@@ -110,6 +110,7 @@ export interface PreferenceVector {
   target_active_days: number; // 1–7, 기본 5
   diversity_lambda: number; // 기본 0.0
   back_to_back_preference: number; // 기본 0.0
+  min_break_minutes: number; // 같은 날 연속 수업 사이 최소 쉬는시간(분), 기본 0
 }
 
 // ── 출력 (SelectionResult / Valuation) ───────────────────────

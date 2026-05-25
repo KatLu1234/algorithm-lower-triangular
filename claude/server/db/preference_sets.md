@@ -29,6 +29,7 @@
 | `target_active_days`      | smallint    | N    | `5`                 | 목표 활성 요일 수                   |
 | `diversity_lambda`        | numeric     | N    | `0.0`               | 건물 다양성 페널티 λ₃               |
 | `back_to_back_preference` | numeric     | N    | `0.0`               | 연강/공강 선호 (부호 사용자 정의)   |
+| `min_break_minutes`       | smallint    | N    | `0`                 | 같은 날 연속 수업 사이 최소 쉬는시간(분). A-2 하드 제약 |
 | `time_penalty_grid`       | jsonb       | N    | `'{}'`              | 시간대 페널티 (구간 문자열 → 가중치)|
 | `category_weights`        | jsonb       | N    | `'{}'`              | Category → 가중치                   |
 | `requirement_weights`     | jsonb       | N    | `'{}'`              | Requirement → 가중치                |
@@ -44,6 +45,7 @@
 - **CHECK**: `credit_min >= 0`, `credit_max >= 1`, `credit_min <= credit_max`
 - **CHECK**: `target_active_days BETWEEN 1 AND 7`
 - **CHECK**: `travel_time_lambda >= 0`, `compactness_lambda >= 0`, `diversity_lambda >= 0`
+- **CHECK**: `min_break_minutes >= 0`
 - **인덱스**: `idx (user_id)`, `idx (term)`
 
 ## 관계
@@ -67,6 +69,7 @@ CREATE TABLE preference_sets (
     target_active_days      smallint NOT NULL DEFAULT 5 CHECK (target_active_days BETWEEN 1 AND 7),
     diversity_lambda        numeric NOT NULL DEFAULT 0.0 CHECK (diversity_lambda >= 0),
     back_to_back_preference numeric NOT NULL DEFAULT 0.0,
+    min_break_minutes       smallint NOT NULL DEFAULT 0 CHECK (min_break_minutes >= 0),
     time_penalty_grid       jsonb NOT NULL DEFAULT '{}'::jsonb,
     category_weights        jsonb NOT NULL DEFAULT '{}'::jsonb,
     requirement_weights     jsonb NOT NULL DEFAULT '{}'::jsonb,
