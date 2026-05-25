@@ -67,7 +67,7 @@ class PreferenceVector(BaseModel):
     )
     blackout_windows: list[BlackoutWindow] = Field(
         default_factory=list,
-        description="사용자 외부 일정. A-1에서 완전 겹침 강의 제거",
+        description="사용자 외부 일정. A-1에서 겹치는 슬롯이 하나라도 있는 강의를 통째로 제거",
     )
 
     # ③ 강의별 점수 가중치 (B-1에서 v(c)에 합산)

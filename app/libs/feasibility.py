@@ -29,10 +29,15 @@ _WEEKDAY_ORDER: dict[Weekday, int] = {
 _LARGE_TRAVEL = 10**6
 
 
-def _fully_blacked_out(course: Course, prefs: PreferenceVector) -> bool:
-    if not course.times:
-        return False
-    return all(
+def _any_slot_blacked_out(course: Course, prefs: PreferenceVector) -> bool:
+    """강의 슬롯 중 *하나라도* blackout에 걸리면 True → 강의 통째로 후보 제외.
+
+    강의는 슬롯을 쪼개 들을 수 없다(예: 월·수·금 강의에서 금요일 회차만 빠질 수 없음).
+    따라서 blackout에 걸린 슬롯이 하나라도 있으면 그 강의 자체가 수강 불가다.
+    (구현 변경: 모든 슬롯이 걸려야 제외하던 all() 방식은, 다른 요일도 열리는
+     강의의 blackout 슬롯이 시간표에 새어 들어오는 문제가 있어 any() 로 바꿨다.)
+    """
+    return any(
         any(bw.overlaps_slot(s) for bw in prefs.blackout_windows)
         for s in course.times
     )
@@ -47,7 +52,7 @@ def filter_pool(prefs: PreferenceVector) -> tuple[list[Course], set[CourseId]]:
             continue
         if c.course_group_id is not None and c.course_group_id in prefs.exclude_groups:
             continue
-        if _fully_blacked_out(c, prefs):
+        if _any_slot_blacked_out(c, prefs):
             continue
         candidates.append(c)
         if c.id in prefs.must_include:
