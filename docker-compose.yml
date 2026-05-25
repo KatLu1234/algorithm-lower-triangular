@@ -28,12 +28,12 @@ services:
       PYTHONUNBUFFERED: "1"
     restart: unless-stopped
 
-  frontend:
+  nginx:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     image: lt-frontend:latest
-    container_name: lt-frontend
+    container_name: lt-nginx
     ports:
       - "8080:80"
     depends_on:

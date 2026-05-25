@@ -1,21 +1,6 @@
-# requirements.txt - algorithm-lower-triangular 런타임 의존성
-# 코드가 실제로 import 하는 직접 의존성만 명시한다. 전이 의존성은 pip가 자동 해결.
-# (이전 파일은 UTF-16 + 중단(truncated) 손상 + 무관 패키지(Django) 혼입 상태라 재작성함.)
-# 핀 버전은 현재 .venv에 설치되어 동작 확인된 버전 기준.
-
-# --- 웹 프레임워크 / 서버 ---
 fastapi==0.136.1
 uvicorn[standard]==0.48.0
-starlette==1.0.0            # app/main.py 에서 CORSMiddleware 직접 사용
-
-# --- 데이터 검증 / 설정 ---
+starlette==1.0.0
 pydantic==2.13.3
-pydantic-settings==2.14.1   # app/core/config.py (.env 로드)
-
-# --- 개발 / 테스트 ---
+pydantic-settings==2.14.1
 pytest==9.0.3
-
-# --- DB (선택) ---
-# items 라우터 + Supabase 영속화를 재활성화할 때 아래 주석을 해제하고 버전 핀을 추가하세요.
-# 현재 MVP 프로토타입은 supabase 없이 동작합니다 (items 라우터 비활성화 상태).
-# supabase
