@@ -29,6 +29,8 @@ class ScoreBreakdown(BaseModel):
               + compactness_penalty
               + diversity_penalty
               + back_to_back_term
+              + time_window_penalty   ← S-02 (λ₄)
+              + daily_span_penalty    ← S-03 (λ₅)
 
     페널티 항은 *부호를 그대로* 들고 있으므로 보통 음수다 (∴ 합산은 그냥 +).
     """
@@ -66,6 +68,20 @@ class ScoreBreakdown(BaseModel):
         default=0.0,
         description="연강/공강 선호 항 (사용자 부호)",
     )
+    time_window_penalty: float = Field(
+        default=0.0,
+        description=(
+            "−λ₄ · 선호 시간창[preferred_start, preferred_end] *밖*에 놓인 슬롯 분 합 — 보통 ≤ 0. "
+            "λ₄(time_window_lambda)=0 또는 창=하루 전체이면 0."
+        ),
+    )
+    daily_span_penalty: float = Field(
+        default=0.0,
+        description=(
+            "−λ₅ · 요일별 (마지막 종료 − 첫 시작) 시간(시간 단위) 합 — 보통 ≤ 0. "
+            "λ₅(daily_span_lambda)=0이면 0."
+        ),
+    )
 
     @property
     def total(self) -> float:
@@ -79,6 +95,8 @@ class ScoreBreakdown(BaseModel):
             + self.compactness_penalty
             + self.diversity_penalty
             + self.back_to_back_term
+            + self.time_window_penalty
+            + self.daily_span_penalty
         )
 
 

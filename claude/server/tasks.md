@@ -46,18 +46,7 @@ last_updated: 2026-05-17
 
 **PURPOSE**: 아직 시작 전 카드.
 
-- [S-01] 카테고리별 강의 개수 제약 (전공 N개 등) — B-3 하드 제약
-  - owner: 미배정  | priority: P2
-  - 컨텍스트: 학점 *합* 제약(credit_min/max)은 있으나 "전공 3개" 같은 카테고리 *개수* 제약이 없음 (사용자 요청 기능 3). 추천 난이도 순서상 기능 2(쉬는시간, 완료) 다음으로 쉬움.
-  - 산출물 (DONE 기준):
-    1. `PreferenceVector`에 옵셔널 필드 `category_count_min: dict[Category,int]`·`category_count_max: dict[Category,int]` (기본 빈 dict) 추가 + `_check_consistency`에 검증(카테고리별 min≤max, 값 ≥0). 기본값=빈 dict 이므로 하위호환.
-    2. `valuation._enumerate_feasible_subsets`의 `record()`에 카테고리 개수 검사 추가 (credit_min·must_groups 옆). `Counter(by_id[cid].category for cid in chosen)`로 카운트 후 min/max 위반 시 reject. `knapsack_01` 상한 가지치기는 카테고리를 무시하므로 여전히 유효한 상한(정답성 유지).
-    3. (선택) A-3 도달성 사전검증 + `InfeasibilityReason.CATEGORY_COUNT_UNREACHABLE` 추가. (성능: dfs에서 max 도달 카테고리 가지치기 — 선택)
-    4. `tests/`에 케이스(개수 부족·초과·정확 일치) + `drafts/algorithm-tree.md` §9.3(B-3) 명세에 한 줄 추가.
-  - 관련 파일: `app/schemas/preferences.py`(필드·검증), `app/libs/valuation.py`(`_enumerate_feasible_subsets`/`record`), `app/schemas/common.py`(`Category`)
-  - 참고 문서: `claude/base/drafts/algorithm-tree.md` §9.3(B-3), 본 세션 기능3 설계 논의(하드, B-3)
-  - 비고: 핵심은 서버 닫힘(API로 동작 — bucket B 가중치들과 동일). 프론트 입력 UI 노출은 별도 F 카드로 분리 가능.
-  - 변경일: 2026-05-25
+(여기에 카드 추가)
 
 ---
 
@@ -73,7 +62,40 @@ last_updated: 2026-05-17
 
 **PURPOSE**: 완료 확인된 카드. 분기마다 §6 아카이브로 이동.
 
-(여기에 카드 추가)
+- [S-01] 카테고리별 강의 개수 제약 (전공 N개 등) — B-3 하드 제약 ✓
+  - owner: @claude  | priority: P2
+  - 컨텍스트: 학점 *합* 제약(credit_min/max)은 있으나 "전공 3개" 같은 카테고리 *개수* 제약이 없음 (사용자 요청 기능 3). 추천 난이도 순서상 기능 2(쉬는시간, 완료) 다음으로 쉬움.
+  - 산출물 (DONE 기준):
+    1. ✓ `PreferenceVector`에 옵셔널 필드 `category_count_min`·`category_count_max: dict[Category,int]={}` 추가 + `_check_consistency`에 값 ≥0 / min ≤ max 검증.
+    2. ✓ `valuation._enumerate_feasible_subsets.record()`에 `satisfies_category_counts()` 검사 추가 (credit_min·must_groups 옆). `Counter(by_id[cid].category for cid in chosen)` 카운트.
+    3. ⏸ (선택) A-3 도달성 사전검증 + `InfeasibilityReason.CATEGORY_COUNT_UNREACHABLE` — 보류 (다음 카드로 분리 가능).
+    4. ✓ `tests/test_category_count.py` 신규(7 케이스: 빈 dict·min/max 필터·정확 일치·불가능 min→0·validation 2건) + `drafts/algorithm-tree.md` §9.3(B-3) 한 줄 추가.
+  - 관련 파일: `app/schemas/preferences.py`, `app/libs/valuation.py`, `tests/test_category_count.py`
+  - 참고 문서: `claude/base/drafts/algorithm-tree.md` §9.3(B-3), `claude/base/progress.md` 2026-05-25 기능3 항목
+  - 비고: 서버 닫힘 완료. 프론트 입력 UI 노출은 별도 F 카드로 분리 필요.
+  - 변경일: 2026-05-25 (TODO → DONE)
+
+- [S-02] 시간대 선호 페널티 λ₄ (이른 아침·늦은 저녁 회피) ✓
+  - owner: @claude  | priority: P2
+  - 컨텍스트: 지금은 정확 구간 문자열 `time_penalty_grid`("MON 0900-1015")로만 시간대를 깎을 수 있어 "9시 이전·18시 이후 전부 싫다"를 누르기 번거로움. 연속 임계값 λ로 일반화.
+  - 산출물:
+    1. ✓ `PreferenceVector`에 `time_window_lambda: float=0.0`(ge=0) + `preferred_start_minute: int=0` + `preferred_end_minute: int=24*60`. `_check_consistency`에 start<end 검증.
+    2. ✓ `ScoreBreakdown.time_window_penalty: float=0.0` 전용 필드 + `total` 합산.
+    3. ✓ `_build_breakdown`이 `_schedule_out_of_window_minutes()` 헬퍼로 창 밖 분 합산 → `-time_window_lambda * 창밖_분`.
+    4. ✓ `tests/test_score_lambdas.py` 신규(out_of_window 4건·breakdown 필드 4건·validation 1건·통합 1건) + `drafts/algorithm-tree.md` §9.3 λ₄ 항 추가.
+  - 관련 파일: `app/schemas/preferences.py`, `app/schemas/valuation.py`, `app/libs/valuation.py`, `tests/test_score_lambdas.py`
+  - 변경일: 2026-05-25 (TODO → DONE)
+
+- [S-03] 하루 등교 길이(span) 페널티 λ₅ ✓
+  - owner: @claude  | priority: P2
+  - 컨텍스트: `compactness_lambda`(λ₂)는 등교 *요일 수*만 보고 하루 안 늘어짐은 안 봄. "가는 날엔 짧게 끝내고 싶다"의 within-day 짝.
+  - 산출물:
+    1. ✓ `PreferenceVector.daily_span_lambda: float=0.0`(ge=0). 기본 0=비활성.
+    2. ✓ `ScoreBreakdown.daily_span_penalty: float=0.0` 전용 필드 + `total` 합산.
+    3. ✓ `_build_breakdown`이 `_schedule_total_daily_span_hours()` 헬퍼로 요일별 `(max end − min start)`를 시간 단위(/60) 합산 → `-daily_span_lambda * 총_span`.
+    4. ✓ `tests/test_score_lambdas.py` 신규(span 3건·breakdown 필드 1건·validation 1건·통합 1건) + `drafts/algorithm-tree.md` §9.3 λ₅ 항 추가.
+  - 관련 파일: `app/schemas/preferences.py`, `app/schemas/valuation.py`, `app/libs/valuation.py`, `tests/test_score_lambdas.py`
+  - 변경일: 2026-05-25 (TODO → DONE)
 
 ---
 

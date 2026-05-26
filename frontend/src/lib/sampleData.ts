@@ -123,6 +123,8 @@ export function buildSamplePreference(): PreferenceVector {
     courses: SAMPLE_COURSES,
     credit_min: 14,
     credit_max: 18,
+    category_count_min: {},
+    category_count_max: {},
     course_importance: {
       "CS101-01": 5,
       "CS101-02": 5,
@@ -140,6 +142,7 @@ export function buildSamplePreference(): PreferenceVector {
     blackout_windows: [
       { days: ["FRI"], start_minute: t(13), end_minute: t(18), reason: "통학" },
     ],
+    min_break_minutes: 0,
     time_penalty_grid: {},
     category_weights: { 전공: 0.5 },
     requirement_weights: { 필수: 1.0 },
@@ -150,7 +153,10 @@ export function buildSamplePreference(): PreferenceVector {
     target_active_days: 4,
     diversity_lambda: 0.0,
     back_to_back_preference: 0.0,
-    min_break_minutes: 0,
+    time_window_lambda: 0.0,
+    preferred_start_minute: 0,
+    preferred_end_minute: 24 * 60,
+    daily_span_lambda: 0.0,
   };
 }
 
@@ -165,12 +171,15 @@ export function buildPreferenceFromCourses(courses: Course[]): PreferenceVector 
     courses,
     credit_min: 9,
     credit_max: 18,
+    category_count_min: {},
+    category_count_max: {},
     course_importance: Object.fromEntries(courses.map((c) => [c.id, 3])),
     must_include: [],
     exclude: [],
     must_include_groups: [],
     exclude_groups: [],
     blackout_windows: [],
+    min_break_minutes: 0,
     time_penalty_grid: {},
     category_weights: { 전공: 0.5 },
     requirement_weights: { 필수: 1.0, 선택: 0.3 },
@@ -181,7 +190,10 @@ export function buildPreferenceFromCourses(courses: Course[]): PreferenceVector 
     target_active_days: 5,
     diversity_lambda: 0.0,
     back_to_back_preference: 0.0,
-    min_break_minutes: 0,
+    time_window_lambda: 0.0,
+    preferred_start_minute: 0,
+    preferred_end_minute: 24 * 60,
+    daily_span_lambda: 0.0,
   };
 }
 
@@ -200,6 +212,8 @@ export function buildSampleResult(): SelectionResult {
           compactness_penalty: 0,
           diversity_penalty: 0,
           back_to_back_term: 1.5,
+          time_window_penalty: 0,
+          daily_span_penalty: 0,
         },
       },
       {
@@ -214,6 +228,8 @@ export function buildSampleResult(): SelectionResult {
           compactness_penalty: -0.5,
           diversity_penalty: 0,
           back_to_back_term: 0,
+          time_window_penalty: 0,
+          daily_span_penalty: 0,
         },
       },
     ],

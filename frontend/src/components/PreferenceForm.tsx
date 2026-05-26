@@ -83,6 +83,19 @@ export function PreferenceForm({
   const [compactLambda, setCompactLambda] = useState(initial.compactness_lambda);
   const [minBreak, setMinBreak] = useState(initial.min_break_minutes ?? 0);
   const [blackouts, setBlackouts] = useState<BlackoutWindow[]>(initial.blackout_windows);
+  // S-01 카테고리별 개수 제약 (B-3 하드)
+  const [categoryCountMin, setCategoryCountMin] = useState<Partial<Record<Category, number>>>(
+    initial.category_count_min ?? {},
+  );
+  const [categoryCountMax, setCategoryCountMax] = useState<Partial<Record<Category, number>>>(
+    initial.category_count_max ?? {},
+  );
+  // S-02 선호 시간창 (λ₄)
+  const [timeWindowLambda, setTimeWindowLambda] = useState(initial.time_window_lambda ?? 0);
+  const [preferredStart, setPreferredStart] = useState(initial.preferred_start_minute ?? 0);
+  const [preferredEnd, setPreferredEnd] = useState(initial.preferred_end_minute ?? 24 * 60);
+  // S-03 하루 등교 길이 (λ₅)
+  const [dailySpanLambda, setDailySpanLambda] = useState(initial.daily_span_lambda ?? 0);
 
   const [draft, setDraft] = useState<DraftCourse>(emptyDraft());
   const [adding, setAdding] = useState(false);
@@ -156,12 +169,26 @@ export function PreferenceForm({
       setFormError("학점 하한이 상한보다 큽니다.");
       return;
     }
+    if (preferredStart >= preferredEnd) {
+      setFormError("선호 시간창의 시작이 종료보다 늦거나 같습니다.");
+      return;
+    }
+    for (const cat of CATEGORIES) {
+      const mn = categoryCountMin[cat];
+      const mx = categoryCountMax[cat];
+      if (mn !== undefined && mx !== undefined && mn > mx) {
+        setFormError(`${cat} 카테고리 개수: 하한(${mn})이 상한(${mx})보다 큽니다.`);
+        return;
+      }
+    }
     setFormError(null);
     const pref: PreferenceVector = {
       ...initial,
       courses,
       credit_min: creditMin,
       credit_max: creditMax,
+      category_count_min: categoryCountMin,
+      category_count_max: categoryCountMax,
       course_importance: importance,
       must_include: [...mustInclude],
       exclude: [...exclude],
@@ -170,6 +197,10 @@ export function PreferenceForm({
       travel_time_lambda: travelLambda,
       compactness_lambda: compactLambda,
       min_break_minutes: minBreak,
+      time_window_lambda: timeWindowLambda,
+      preferred_start_minute: preferredStart,
+      preferred_end_minute: preferredEnd,
+      daily_span_lambda: dailySpanLambda,
     };
     onSubmit(pref);
   }
@@ -296,7 +327,49 @@ export function PreferenceForm({
             max={180}
             onChange={setMinBreak}
           />
+          <SliderField
+            label="하루 길이 페널티 λ₅"
+            value={dailySpanLambda}
+            min={0}
+            max={2}
+            step={0.1}
+            onChange={setDailySpanLambda}
+          />
         </div>
+      </Section>
+
+      {/* 선호 시간창 (λ₄) — 옵션 영역 */}
+      <Section
+        title="🕘 선호 시간창 (λ₄)"
+        desc="이 시간대 *밖*에 놓인 분만큼 λ₄로 깎습니다. λ₄=0이면 비활성."
+        accent
+      >
+        <div className="grid gap-4 sm:grid-cols-3">
+          <SliderField
+            label="페널티 강도 λ₄"
+            value={timeWindowLambda}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={setTimeWindowLambda}
+          />
+          <TimeMinuteField label="선호 시작" value={preferredStart} onChange={setPreferredStart} />
+          <TimeMinuteField label="선호 종료" value={preferredEnd} onChange={setPreferredEnd} />
+        </div>
+      </Section>
+
+      {/* 카테고리 개수 제약 (S-01, B-3 하드) — 옵션 영역 */}
+      <Section
+        title="📚 카테고리별 강의 개수 (하드 제약)"
+        desc="비워두면 비활성. 학점 *합*과는 직교 — 예: 전공 최소 3개 / 교양 최대 2개."
+        accent
+      >
+        <CategoryCountEditor
+          countMin={categoryCountMin}
+          countMax={categoryCountMax}
+          onMinChange={setCategoryCountMin}
+          onMaxChange={setCategoryCountMax}
+        />
       </Section>
 
       {/* Blackout — 옵션 영역 */}
@@ -758,7 +831,103 @@ function BlackoutEditor({
   );
 }
 
+// ── 카테고리별 강의 개수 에디터 (S-01) ──────────────────────────
+function CategoryCountEditor({
+  countMin,
+  countMax,
+  onMinChange,
+  onMaxChange,
+}: {
+  countMin: Partial<Record<Category, number>>;
+  countMax: Partial<Record<Category, number>>;
+  onMinChange: Dispatch<SetStateAction<Partial<Record<Category, number>>>>;
+  onMaxChange: Dispatch<SetStateAction<Partial<Record<Category, number>>>>;
+}) {
+  function updateCount(
+    setter: Dispatch<SetStateAction<Partial<Record<Category, number>>>>,
+    cat: Category,
+    raw: string,
+  ) {
+    setter((prev) => {
+      const next = { ...prev };
+      if (raw === "") delete next[cat];
+      else {
+        const n = Number(raw);
+        if (!Number.isNaN(n) && n >= 0) next[cat] = n;
+      }
+      return next;
+    });
+  }
+  return (
+    <table className="w-full text-sm">
+      <thead className="text-xs text-ink-faint">
+        <tr>
+          <th className="py-1 text-left font-normal">카테고리</th>
+          <th className="py-1 text-left font-normal">하한 (≥)</th>
+          <th className="py-1 text-left font-normal">상한 (≤)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {CATEGORIES.map((cat) => (
+          <tr key={cat}>
+            <td className="py-1 pr-2 text-ink">{cat}</td>
+            <td className="py-1 pr-2">
+              <input
+                type="number"
+                min={0}
+                value={countMin[cat] ?? ""}
+                placeholder="—"
+                onChange={(e) => updateCount(onMinChange, cat, e.target.value)}
+                aria-label={`${cat} 카테고리 강의 개수 하한`}
+                className="w-20 rounded border border-slate-300 bg-white px-2 py-1 text-sm tabular-nums"
+              />
+            </td>
+            <td className="py-1">
+              <input
+                type="number"
+                min={0}
+                value={countMax[cat] ?? ""}
+                placeholder="—"
+                onChange={(e) => updateCount(onMaxChange, cat, e.target.value)}
+                aria-label={`${cat} 카테고리 강의 개수 상한`}
+                className="w-20 rounded border border-slate-300 bg-white px-2 py-1 text-sm tabular-nums"
+              />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 // ── 작은 입력 컴포넌트 ────────────────────────────────────────
+function TimeMinuteField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const id = useId();
+  return (
+    <label htmlFor={id} className="flex flex-col gap-1 text-xs text-ink-soft">
+      {label}
+      <input
+        id={id}
+        type="time"
+        value={minutesToHHMM(value)}
+        onChange={(e) => {
+          const m = hhmmToMinutes(e.target.value);
+          if (m !== null) onChange(m);
+        }}
+        className="w-28 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm tabular-nums text-ink"
+      />
+    </label>
+  );
+}
+
 function TextField({
   label,
   value,

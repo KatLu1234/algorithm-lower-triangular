@@ -54,6 +54,37 @@ class TestMergeDelta:
         merged, _ = _merge_delta(base_pv, delta, base_pv.courses)
         assert len(merged.blackout_windows) == before + 1
 
+    def test_blackout_windows_dedup_same_window_twice(self, base_pv):
+        """같은 (days, start, end) 조합을 두 번 보내도 한 번만 보존 — 누적 방지."""
+        delta = {"blackout_windows": [
+            {"days": ["FRI"], "start_minute": 780, "end_minute": 1080, "reason": "통학"},
+            {"days": ["FRI"], "start_minute": 780, "end_minute": 1080, "reason": "통학"},
+        ]}
+        merged, _ = _merge_delta(base_pv, delta, base_pv.courses)
+        assert len(merged.blackout_windows) == 1
+
+    def test_blackout_windows_dedup_against_existing(self, base_pv):
+        """기존 PreferenceVector에 이미 있는 window를 LLM이 다시 보내도 누적 안 됨."""
+        from app.schemas import BlackoutWindow
+        # 기존 blackout 1개를 미리 박아둠
+        prev = base_pv.model_copy(update={"blackout_windows": [
+            BlackoutWindow(days=[Weekday.FRI], start_minute=780, end_minute=1080, reason="통학"),
+        ]})
+        delta = {"blackout_windows": [
+            {"days": ["FRI"], "start_minute": 780, "end_minute": 1080, "reason": "통학"},
+        ]}
+        merged, _ = _merge_delta(prev, delta, prev.courses)
+        assert len(merged.blackout_windows) == 1
+
+    def test_blackout_windows_different_windows_kept(self, base_pv):
+        """다른 (days, start, end) 조합은 모두 살아남아야 한다."""
+        delta = {"blackout_windows": [
+            {"days": ["FRI"], "start_minute": 780, "end_minute": 1080, "reason": "통학"},
+            {"days": ["MON"], "start_minute": 720, "end_minute": 780, "reason": "점심"},
+        ]}
+        merged, _ = _merge_delta(base_pv, delta, base_pv.courses)
+        assert len(merged.blackout_windows) == 2
+
     def test_must_include_groups_union(self, base_pv):
         merged, _ = _merge_delta(base_pv, {"must_include_groups": ["DS"]}, base_pv.courses)
         assert "DS" in merged.must_include_groups

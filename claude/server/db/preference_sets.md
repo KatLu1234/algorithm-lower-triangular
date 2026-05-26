@@ -35,6 +35,8 @@
 | `requirement_weights`     | jsonb       | N    | `'{}'`              | Requirement → 가중치                |
 | `building_penalties`      | jsonb       | N    | `'{}'`              | BuildingCode → 가중치               |
 | `professor_preferences`   | jsonb       | N    | `'{}'`              | 교수 → 가중치                       |
+| `category_count_min`      | jsonb       | N    | `'{}'`              | Category → 강의 *개수* 하한 (기능3)  |
+| `category_count_max`      | jsonb       | N    | `'{}'`              | Category → 강의 *개수* 상한 (기능3)  |
 | `created_at`              | timestamptz | N    | `now()`             | 생성 시각                           |
 | `updated_at`              | timestamptz | N    | `now()`             | 갱신 시각                           |
 
@@ -75,6 +77,8 @@ CREATE TABLE preference_sets (
     requirement_weights     jsonb NOT NULL DEFAULT '{}'::jsonb,
     building_penalties      jsonb NOT NULL DEFAULT '{}'::jsonb,
     professor_preferences   jsonb NOT NULL DEFAULT '{}'::jsonb,
+    category_count_min      jsonb NOT NULL DEFAULT '{}'::jsonb,
+    category_count_max      jsonb NOT NULL DEFAULT '{}'::jsonb,
     created_at              timestamptz NOT NULL DEFAULT now(),
     updated_at              timestamptz NOT NULL DEFAULT now(),
     CHECK (credit_min <= credit_max)

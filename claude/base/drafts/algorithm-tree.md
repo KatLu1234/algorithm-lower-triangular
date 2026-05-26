@@ -130,7 +130,7 @@
   건물 간 최단 이동 시간 표 산출. 한 번 계산하면 이후 O(1) 룩업. 시간표 이동 합산은 인접 슬롯의 **슬롯별 건물**로 룩업한다.
 - **B-3 누적 점수 최적화 + top-K 추출 (per-schedule)** — 0-1 배낭(상한 가지치기) + 백트래킹  
   ※ 실제 구현: `valuation._enumerate_feasible_subsets`의 백트래킹이 `knapsack_01` 상한으로 가지치기. 명세상 거론됐던 행렬 경로 DP는 **미채택**(`matrix_path_dp.py`는 현재 import되지 않는 dead code).
-  시간 슬롯 격자 DP로 정확해 산출, **그룹당 최대 1개 분반 선택 제약 적용**, `must_include_groups`는 그룹 내 점수 최대 분반 강제 포함, 시간표 단위 후처리 페널티 적용, 백트래킹으로 top-K 복원.
+  시간 슬롯 격자 DP로 정확해 산출, **그룹당 최대 1개 분반 선택 제약 적용**, `must_include_groups`는 그룹 내 점수 최대 분반 강제 포함, 시간표 단위 후처리 페널티 적용, 백트래킹으로 top-K 복원. **`category_count_min`/`category_count_max`로 카테고리별 강의 *개수* 하한·상한도 `record()` 시점에 하드 검사** (기능 3, 2026-05-25 — 학점 *합* 제약과 직교; `knapsack_01` 상한 가지치기는 카테고리를 무시하므로 정답성 유지).
 
 **점수 식** (B-1):
 ```
@@ -141,6 +141,15 @@ v(c) = 중요도(c) × 학점(c)
      + 이수요건 가중치(c.requirement)
      + 교수 가중치(c.professor)         ← 신규 (분반 선호 표현)
 ```
+
+**시간표 단위 후처리 람다 (B-3 `_build_breakdown` 합산 항)**:
+- λ₁ `travel_time_lambda` × 총 이동시간(분) — `travel_penalty`
+- λ₂ `compactness_lambda` × max(0, 활성 요일 − `target_active_days`) — `compactness_penalty`
+- λ₃ `diversity_lambda` × 방문 건물 수 — `diversity_penalty`
+- **λ₄ `time_window_lambda` × `[preferred_start, preferred_end]` 밖 슬롯 분 합** — `time_window_penalty` (S-02, 2026-05-25; "이른 아침·늦은 저녁 회피"의 연속 임계값 표현. `time_penalty_grid` 정확 구간 문자열과 공존)
+- **λ₅ `daily_span_lambda` × 요일별 (마지막 종료 − 첫 시작) 시간 합** — `daily_span_penalty` (S-03, 2026-05-25; λ₂는 요일 *수*만 보지만 λ₅는 하루 *길이*. "가는 날엔 짧게" 표현 — within-day 짝)
+
+각 λ는 `ScoreBreakdown`의 *전용 필드*에 잡혀 LLM/UI가 항별로 설명할 수 있다(설명 가능성 §4-2). 기본값(λ=0 또는 창=하루 전체)이면 0이라 하위호환.
 
 ### 9.4 C — 선택과 비교
 
@@ -204,6 +213,14 @@ T = O( V³ + N² + N·C + Ñ²·L² )
 A-3가 `credit_ceiling_reachable=false` 또는 필수 강의 충돌 검출 시 B·C 실행 안 함.
 트리 출력은 `InfeasibilityReport` (어느 제약을 풀면 가능해지는지 진단 포함).
 트리의 *조기 종료 경로*로 base 계약에 명시 필요.
+
+**B-3 빈 결과 진단 (2026-05-25)**: A-3 `_check_credit_reach`는 *요일별* activity
+selection으로 도달 학점을 본다 — 강의 단위 호환(이동시간·`course_group_id` 공유 등)을
+보지 못해 종종 과대평가된다. 그 결과 A-3는 통과해도 B-3 백트래킹이 모두 reject되어
+`val.is_empty=True`인 케이스가 생긴다. 이때 `recommend()`의 `_max_reachable_credit_under_compat`
+헬퍼가 **호환 행렬 기반 진짜 최대 학점**을 한 번 더 계산해 정확한 `InfeasibilityReport`를
+만든다 — "양립 가능 최대 N학점 < 하한 M학점, 하한을 N 이하로 낮추거나 호환 강의 추가"
+또는 학점은 충족하지만 그룹·카테고리 개수 제약이 막은 경우 그 사실을 명시한다.
 
 ### 9.9 확정·변동 항목 분리표
 

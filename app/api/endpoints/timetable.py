@@ -39,13 +39,17 @@ from app.schemas import (
 # LLM-A delta에서 허용되는 키 — 화이트리스트. 다른 키는 silently 버린다.
 _ALLOWED_DELTA_KEYS = frozenset({
     "credit_min", "credit_max",
+    "category_count_min", "category_count_max",  # S-01 (B-3 하드)
     "must_include", "exclude", "must_include_groups", "exclude_groups",
     "blackout_windows",
+    "min_break_minutes",                          # 기능 2 (A-2 하드)
     "course_importance",
     "category_weights", "requirement_weights",
     "professor_preferences", "building_penalties",
     "travel_time_lambda", "compactness_lambda", "diversity_lambda",
     "target_active_days", "back_to_back_preference",
+    "time_window_lambda", "preferred_start_minute", "preferred_end_minute",  # S-02 (λ₄)
+    "daily_span_lambda",                          # S-03 (λ₅)
 })
 
 router = APIRouter()
@@ -211,7 +215,20 @@ def _merge_delta(
             continue
         if key == "blackout_windows":
             existing = payload.get(key, []) or []
-            payload[key] = list(existing) + list(value or [])
+            # (days_tuple, start, end) 기준 dedup — LLM이 동일 입력을 반복 호출하거나
+            # 같은 windo를 두 번 생성해도 누적되지 않도록 (기존 사용자 명시 제약 보존 + 중복 제거).
+            seen: set[tuple] = set()
+            merged: list = []
+            for w in list(existing) + list(value or []):
+                if not isinstance(w, dict):
+                    continue
+                days = tuple(sorted(w.get("days") or []))
+                key_tuple = (days, w.get("start_minute"), w.get("end_minute"))
+                if key_tuple in seen:
+                    continue
+                seen.add(key_tuple)
+                merged.append(w)
+            payload[key] = merged
             continue
         # dict / scalar — 그대로 교체
         payload[key] = value

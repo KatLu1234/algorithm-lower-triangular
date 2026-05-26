@@ -1,8 +1,26 @@
-# 시간표 만들기 — 프론트(nginx 정적 + /api 프록시) + 백엔드(FastAPI/uvicorn)
+# 시간표 만들기 — 프론트(nginx HTTPS + /api 프록시) + 백엔드(FastAPI/uvicorn)
 #
 # 사용:
 #   docker compose up --build
-#   → http://localhost:8080  (frontend nginx, /api 는 backend로 자동 프록시)
+#   → https://kustimetable.duckdns.org/   (인증서 발급 후)
+#   → http://kustimetable.duckdns.org/    → 301 → https
+#
+# 첫 인증서 발급(없으면 nginx 시작 실패):
+#   # 1) 일단 HTTP 전용 임시 nginx 또는 docker run으로 80만 열어두기.
+#   # 2) certbot HTTP-01 챌린지 발급:
+#   docker run --rm \
+#     -v "$(pwd)/certbot/conf:/etc/letsencrypt" \
+#     -v "$(pwd)/certbot/www:/var/www/certbot" \
+#     certbot/certbot certonly --webroot -w /var/www/certbot \
+#     -d kustimetable.duckdns.org --email you@example.com \
+#     --agree-tos --no-eff-email
+#   # 3) docker compose up --build  (이후 인증서 자동 마운트)
+#
+# 인증서 갱신(cron 권장 — 매일 03:30):
+#   docker run --rm \
+#     -v "$(pwd)/certbot/conf:/etc/letsencrypt" \
+#     -v "$(pwd)/certbot/www:/var/www/certbot" \
+#     certbot/certbot renew --quiet && docker compose exec nginx nginx -s reload
 #
 # 단일 백엔드 직접 호출:
 #   docker compose up backend
@@ -35,7 +53,13 @@ services:
     image: lt-frontend:latest
     container_name: lt-nginx
     ports:
-      - "8080:80"
+      - "80:80"     # HTTP — ACME 챌린지 + HTTPS 리다이렉트
+      - "443:443"   # HTTPS — 본 서비스
+    volumes:
+      # Let's Encrypt 인증서 (certbot가 발급해 두는 위치)
+      - ./certbot/conf:/etc/letsencrypt:ro
+      # HTTP-01 챌린지 webroot (nginx와 certbot 공유)
+      - ./certbot/www:/var/www/certbot:ro
     depends_on:
       backend:
         condition: service_healthy

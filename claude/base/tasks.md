@@ -60,7 +60,7 @@
 | 영역 | TODO | DOING | DONE(이번 분기) | P0 미해결 | 보드 |
 | ---- | ---- | ----- | --------------- | --------- | ---- |
 | base | 0 | 0 | 0 | 0 | (이 파일) |
-| server | 1 | 0 | 0 | 0 | [→](../server/tasks.md) |
+| server | 0 | 0 | 3 | 0 | [→](../server/tasks.md) |
 | frontend | 0 | 0 | 0 | 0 | [→](../frontend/tasks.md) |
 | llm-include | 1 | 0 | 0 | 0 | [→](../llm-include/tasks.md) |
 

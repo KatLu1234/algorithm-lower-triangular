@@ -86,6 +86,10 @@ export interface PreferenceVector {
   courses: Course[];
   credit_min: number;
   credit_max: number;
+  /** 카테고리별 강의 *개수* 하한 (B-3 하드, S-01). 빈 dict면 비활성. */
+  category_count_min: Partial<Record<Category, number>>;
+  /** 카테고리별 강의 *개수* 상한 (B-3 하드, S-01). 빈 dict면 비활성. */
+  category_count_max: Partial<Record<Category, number>>;
 
   // ② 사용자 명시 제약
   course_importance: Record<CourseId, number>; // 1–5, 미지정 기본 3
@@ -94,6 +98,7 @@ export interface PreferenceVector {
   must_include_groups: CourseGroupId[];
   exclude_groups: CourseGroupId[];
   blackout_windows: BlackoutWindow[];
+  min_break_minutes: number; // 같은 날 연속 수업 사이 최소 쉬는시간(분), 기본 0
 
   // ③ 강의별 점수 가중치
   time_penalty_grid: Record<string, number>;
@@ -105,12 +110,17 @@ export interface PreferenceVector {
   professor_preferences: Record<string, number>;
 
   // ④ 시간표 단위 후처리 가중치
-  travel_time_lambda: number; // 기본 0.1
-  compactness_lambda: number; // 기본 0.5
+  travel_time_lambda: number; // λ₁ 기본 0.1
+  compactness_lambda: number; // λ₂ 기본 0.5
   target_active_days: number; // 1–7, 기본 5
-  diversity_lambda: number; // 기본 0.0
+  diversity_lambda: number; // λ₃ 기본 0.0
   back_to_back_preference: number; // 기본 0.0
-  min_break_minutes: number; // 같은 날 연속 수업 사이 최소 쉬는시간(분), 기본 0
+  /** S-02 — 선호 시간창 λ₄. 창=[preferred_start, preferred_end] 밖 슬롯 분당 페널티. 기본 0=비활성. */
+  time_window_lambda: number;
+  preferred_start_minute: number; // 기본 0 (하루 시작)
+  preferred_end_minute: number;   // 기본 1440 (하루 끝)
+  /** S-03 — 하루 등교 길이 λ₅. 요일별 (마지막 종료 − 첫 시작) 시간 합당 페널티. 기본 0=비활성. */
+  daily_span_lambda: number;
 }
 
 // ── 출력 (SelectionResult / Valuation) ───────────────────────
@@ -123,6 +133,10 @@ export interface ScoreBreakdown {
   compactness_penalty: number;
   diversity_penalty: number;
   back_to_back_term: number;
+  /** S-02 — 선호 시간창 밖 분 페널티 (λ₄ · 창밖_분). 보통 ≤ 0. */
+  time_window_penalty: number;
+  /** S-03 — 요일별 (마지막 종료 − 첫 시작) 시간 합 페널티 (λ₅ · 합). 보통 ≤ 0. */
+  daily_span_penalty: number;
 }
 
 /** 점수 분해 항목 라벨 (UI 표시 순서대로). */
@@ -135,6 +149,8 @@ export const SCORE_TERMS: { key: keyof ScoreBreakdown; label: string }[] = [
   { key: "compactness_penalty", label: "압축도 페널티" },
   { key: "diversity_penalty", label: "다양성 페널티" },
   { key: "back_to_back_term", label: "연강/공강 선호" },
+  { key: "time_window_penalty", label: "선호 시간창 페널티" },
+  { key: "daily_span_penalty", label: "하루 길이 페널티" },
 ];
 
 export interface ScoredSchedule {

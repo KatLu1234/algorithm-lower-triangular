@@ -39,6 +39,21 @@ class PreferenceVector(BaseModel):
     courses: list[Course] = Field(description="후보 강의 리스트")
     credit_min: int = Field(ge=0, description="학점 합 하한")
     credit_max: int = Field(ge=1, description="학점 합 상한 (배낭 용량)")
+    category_count_min: dict[Category, int] = Field(
+        default_factory=dict,
+        description=(
+            "카테고리별 강의 *개수* 하한 (예: {Category.MAJOR: 3} = 전공 ≥3개). "
+            "credit_min/max는 학점 *합* 제약이고 본 필드는 *개수* 제약(직교). "
+            "빈 dict면 비활성(기존 동작). B-3 record 시점 하드 검사."
+        ),
+    )
+    category_count_max: dict[Category, int] = Field(
+        default_factory=dict,
+        description=(
+            "카테고리별 강의 *개수* 상한 (예: {Category.LIBERAL: 2} = 교양 ≤2개). "
+            "빈 dict면 비활성. B-3 record 시점 하드 검사."
+        ),
+    )
 
     # ② 사용자 명시 제약 — 강의 단위 + 그룹 단위
     course_importance: dict[CourseId, int] = Field(
@@ -112,6 +127,31 @@ class PreferenceVector(BaseModel):
     target_active_days: int = Field(default=5, ge=1, le=7, description="목표 활성 요일 수")
     diversity_lambda: float = Field(default=0.0, ge=0.0, description="건물 다양성 페널티 λ₃")
     back_to_back_preference: float = Field(default=0.0, description="연강/공강 선호")
+    # S-02 — 시간대 선호 페널티 λ₄ (이른 아침·늦은 저녁 회피의 연속 임계값 표현).
+    # time_penalty_grid(정확 구간 문자열)와 공존 — 본 λ는 연속 버전.
+    time_window_lambda: float = Field(
+        default=0.0, ge=0.0,
+        description=(
+            "선호 시간창 밖 분(minutes)당 페널티 λ₄. 기본 0=비활성. "
+            "preferred_start_minute/preferred_end_minute로 창을 정한다."
+        ),
+    )
+    preferred_start_minute: int = Field(
+        default=0, ge=0, le=24 * 60,
+        description="선호 시간창 시작(자정 기준 분). 기본 0=하루 시작.",
+    )
+    preferred_end_minute: int = Field(
+        default=24 * 60, ge=0, le=24 * 60,
+        description="선호 시간창 종료(자정 기준 분). 기본 1440=하루 끝.",
+    )
+    # S-03 — 하루 등교 길이(span) 페널티 λ₅. compactness_lambda(요일 수)와 보완 관계.
+    daily_span_lambda: float = Field(
+        default=0.0, ge=0.0,
+        description=(
+            "요일별 (마지막 종료 − 첫 시작) 시간(시간 단위) 합당 페널티 λ₅. "
+            "기본 0=비활성. '가는 날엔 짧게 끝내고 싶다'를 표현."
+        ),
+    )
 
     @model_validator(mode="after")
     def _check_consistency(self) -> "PreferenceVector":
@@ -152,6 +192,25 @@ class PreferenceVector(BaseModel):
         conflict_groups = self.must_include_groups & self.exclude_groups
         if conflict_groups:
             raise ValueError(f"같은 그룹이 필수·제외 동시: {conflict_groups}")
+        # 카테고리 개수 — 값 ≥0, 같은 키는 min ≤ max
+        for cat, n in self.category_count_min.items():
+            if n < 0:
+                raise ValueError(f"category_count_min[{cat}]={n} < 0")
+        for cat, n in self.category_count_max.items():
+            if n < 0:
+                raise ValueError(f"category_count_max[{cat}]={n} < 0")
+        for cat, n_min in self.category_count_min.items():
+            n_max = self.category_count_max.get(cat)
+            if n_max is not None and n_min > n_max:
+                raise ValueError(
+                    f"category_count: {cat} min({n_min}) > max({n_max})"
+                )
+        # S-02 — 선호 시간창은 start < end
+        if self.preferred_start_minute >= self.preferred_end_minute:
+            raise ValueError(
+                f"preferred_start_minute({self.preferred_start_minute}) "
+                f">= preferred_end_minute({self.preferred_end_minute})"
+            )
         return self
 
     # ── 편의 메서드 ──────────────────────────────────────────────

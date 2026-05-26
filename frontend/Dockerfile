@@ -21,8 +21,11 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # /api 프록시 + SPA 폴백
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+EXPOSE 80 443
 
+# 헬스체크는 :80 그대로 — HTTPS 도입 후 :80은 301 응답하므로 wget이
+# 0바이트 본문으로 종료(exit 0)해 정상으로 본다. HTTPS 경로 자체는 인증서가
+# 없으면 nginx 시작이 실패하므로 별도 검사가 굳이 필요 없다.
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
     CMD wget -q -O- http://127.0.0.1/ > /dev/null || exit 1
 

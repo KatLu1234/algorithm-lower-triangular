@@ -46,7 +46,7 @@ DB 전용 enum(스키마에 대응 없음): `selection_flag`(preference_courses)
 | 테이블 | 문서 | 역할 |
 | ------ | ---- | ---- |
 | `users` | [users.md](./users.md) | 학생 = 선호 설정 소유자 |
-| `preference_sets` | [preference_sets.md](./preference_sets.md) | 학점 한도 + 쉬는시간(min_break) + 후처리 λ + JSONB 가중치 |
+| `preference_sets` | [preference_sets.md](./preference_sets.md) | 학점 한도 + 쉬는시간(min_break) + 카테고리 개수제약 + 후처리 λ + JSONB 가중치 |
 | `preference_courses` | [preference_courses.md](./preference_courses.md) | 후보풀 + 중요도 + must/exclude 플래그 |
 | `preference_groups` | [preference_groups.md](./preference_groups.md) | 과목 그룹 단위 제약 |
 | `blackout_windows` | [blackout_windows.md](./blackout_windows.md) | 절대 불가 시간대 |

@@ -23,3 +23,7 @@ Thumbs.db
 dist/
 build/
 *.egg-info/
+
+# Let's Encrypt 인증서·webroot (절대 커밋 금지)
+certbot/conf/
+certbot/www/

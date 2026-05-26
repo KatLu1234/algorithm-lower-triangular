@@ -11,6 +11,8 @@ scoring 형식은 ScoreBreakdown 8개 필드 (`valuation.py` 스키마 §):
 """
 from __future__ import annotations
 
+from collections import Counter
+
 from app.libs.binary_search import lower_bound
 from app.libs.knapsack import knapsack_01
 from app.schemas import (
@@ -114,6 +116,37 @@ def _back_to_back_count(courses: list[Course]) -> int:
     return count
 
 
+def _schedule_out_of_window_minutes(
+    courses: list[Course], window_start: int, window_end: int
+) -> int:
+    """모든 슬롯이 [window_start, window_end] *밖*에 놓인 분(minutes) 합. S-02 (λ₄)."""
+    total = 0
+    for c in courses:
+        for s in c.times:
+            # 슬롯과 창의 교집합 길이
+            inter = max(0, min(s.end_minute, window_end) - max(s.start_minute, window_start))
+            slot_len = s.end_minute - s.start_minute
+            total += slot_len - inter  # 창 밖에 놓인 분
+    return total
+
+
+def _schedule_total_daily_span_hours(courses: list[Course]) -> float:
+    """요일별 (마지막 종료 − 첫 시작)을 시간 단위(/60)로 합산. S-03 (λ₅).
+
+    "가는 날 안 늘어지게" 표현. 하루에 1슬롯만 있어도 그 슬롯 길이만큼 span.
+    """
+    by_day: dict[Weekday, list[tuple[int, int]]] = {}
+    for c in courses:
+        for s in c.times:
+            by_day.setdefault(s.day, []).append((s.start_minute, s.end_minute))
+    total_minutes = 0
+    for entries in by_day.values():
+        first_start = min(s for s, _ in entries)
+        last_end = max(e for _, e in entries)
+        total_minutes += last_end - first_start
+    return total_minutes / 60.0
+
+
 def _build_breakdown(
     courses: list[Course],
     feas: FeasibilityResult,
@@ -136,6 +169,16 @@ def _build_breakdown(
 
     btb = prefs.back_to_back_preference * _back_to_back_count(courses)
 
+    # S-02 (λ₄) — 선호 시간창 밖 분 페널티
+    out_minutes = _schedule_out_of_window_minutes(
+        courses, prefs.preferred_start_minute, prefs.preferred_end_minute
+    )
+    time_window_pen = -prefs.time_window_lambda * out_minutes
+
+    # S-03 (λ₅) — 요일별 등교 길이 합 페널티 (시간 단위)
+    span_hours = _schedule_total_daily_span_hours(courses)
+    daily_span_pen = -prefs.daily_span_lambda * span_hours
+
     return ScoreBreakdown(
         core_importance=core,
         time_penalty=tpen,
@@ -145,6 +188,8 @@ def _build_breakdown(
         compactness_penalty=compact_pen,
         diversity_penalty=div_pen,
         back_to_back_term=btb,
+        time_window_penalty=time_window_pen,
+        daily_span_penalty=daily_span_pen,
     )
 
 
@@ -206,11 +251,25 @@ def _enumerate_feasible_subsets(
                 covered.add(gid)
         return must_groups.issubset(covered)
 
+    def satisfies_category_counts() -> bool:
+        if not prefs.category_count_min and not prefs.category_count_max:
+            return True
+        cnt = Counter(by_id[cid].category for cid in chosen)
+        for cat, n_min in prefs.category_count_min.items():
+            if cnt.get(cat, 0) < n_min:
+                return False
+        for cat, n_max in prefs.category_count_max.items():
+            if cnt.get(cat, 0) > n_max:
+                return False
+        return True
+
     def record(value: float) -> None:
         used = sum(by_id[i].credit for i in chosen)
         if used < prefs.credit_min:
             return
         if not satisfies_must_groups():
+            return
+        if not satisfies_category_counts():
             return
         results.append((value, list(chosen)))
         if len(results) > top_k * 4:  # 잘라내기: 너무 많은 결과는 정렬 비용
