@@ -400,35 +400,183 @@ If no schedule can satisfy all of these, the API returns an `InfeasibilityReport
 | "Don't make my campus day longer than necessary."                          | `daily_span_lambda` λ₅                                                          | per hour of (last class end − first class start), summed across days                                |
 | "Penalise these exact slot times." (fine-grained)                          | `time_penalty_grid`                                                               | exact lookup by `"DAY HHMM-HHMM"` key                                                              |
 
-Each row above becomes its **own line** in the schedule's `ScoreBreakdown` (10 named fields — see §4.5). That separation is what lets the UI and the LLM explainer tell a user *exactly* how much each preference moved the score for the schedule they're looking at.
+Each row above becomes its **own line** in the schedule's `ScoreBreakdown` (10 named fields — see §4.5)
+. That separation is what lets the UI and the LLM explainer tell a user *exactly* how much each preference moved the score for the schedule they are looking at.
 
 #### Where does each field come from?
 
 - **Filled directly in the React form** — course catalog · `course_importance` · `must_include` / `exclude` · `credit_min / max` · `blackout_windows` · `target_active_days` · `travel_time_lambda` · `compactness_lambda` · `min_break_minutes`.
-- **Filled automatically by the LLM** (the path described in §2.2) — personal-context sentences like *"금요일 아침은 통학이라 비워주세요"* become `blackout_windows`; *"이교수님 운영체제 듣고 싶어요"* becomes a `must_include` plus a `professor_preferences` entry; *"전공 위주로 듣고 싶어요"* becomes a positive `category_weights["전공"]`, and so on. The user never has to type a field name.
+- **Filled automatically by the LLM** (the path described in §2.2) — personal-context sentences like *"금요일 아침은 통학이라 비워주세요"* become `blackout_windows`; *"홍교수님 운영체제 듣고 싶어요"* becomes a `must_include` plus a `professor_preferences` entry; *"전공 위주로 듣고 싶어요"* becomes a positive `category_weights["전공"]`, and so on. The user never has to type a field name.
 - **API only** (programmatic callers can set these; sensible defaults otherwise apply) — `must_include_groups`, `exclude_groups`, `category_count_min / max`, `category_weights`, `requirement_weights`, `building_penalties`, `professor_preferences`, `time_penalty_grid`, `diversity_lambda`, `back_to_back_preference`, `time_window_lambda` (+ window bounds), `daily_span_lambda`.
 
 ### 4.4 Schedule building — B-3 in detail
 
-> TODO: tune the depth to your presentation. Starting point below.
+This is where the top-K timetables are actually *built*. The function lives in [`app/libs/valuation.py`](app/libs/valuation.py) as `_enumerate_feasible_subsets`.
 
-**Problem**: From the courses that passed A, select the top-K subsets that maximize score subject to credit range, required groups, category counts, and similar constraints.
+#### What it has to solve
 
-**Approach**: 0-1 knapsack upper bound + backtracking.
+From the courses that passed A, find the top-K subsets that
 
-1. Required courses are pre-placed into `chosen` (locked).
-2. Optional courses are sorted in descending **value / credit density** — the upper bound tightens quickly.
-3. At each DFS node, `knapsack_01` produces an upper bound on the remaining options; if top-K is already full and the bound cannot beat the K-th threshold, the entire branch is pruned.
-4. When a subset is complete, `record()` checks three conditions:
-   - meets `credit_min`
-   - satisfies `must_include_groups`
-   - satisfies `category_count_min/max`
-5. Each retained subset is then scored by `_build_breakdown` (sum of 10 fields), sorted, and the top K returned.
+- include every `must_include` course (locked),
+- satisfy `credit_min ≤ total credits ≤ credit_max`,
+- cover every required group in `must_include_groups`,
+- satisfy `category_count_min / max`,
+- only use pairs that A-2 marked compatible (so no time / travel / sibling-section conflicts),
+- and maximise the schedule's total score — the sum of per-course `partial_value` plus the schedule-level penalties from §4.5.
 
-Code: [`app/libs/valuation.py`](app/libs/valuation.py), `_enumerate_feasible_subsets`.
+#### Data prepared before search starts
+
+```python
+must_ids       = sorted(feas.must_include_mask)      # locked courses
+optional_ids   = [non-must ids, sorted by value/credit density ↓]
+capacity       = prefs.credit_max - must_credit       # remaining credit budget
+remaining_values, remaining_credits = aligned lists for the knapsack call
+chosen         = list(must_ids)                       # starts with all locked
+threshold["v"] = -∞                                   # K-th best total so far
+```
+
+The density sort is the key to fast pruning: when the search picks greedily, the knapsack upper bound becomes tight after only a handful of steps.
+
+#### The DFS
+
+```python
+def dfs(pos, value_so_far, credit_left):
+    if pos == len(optional_ids):
+        record(value_so_far); return
+    # (a) over-estimate the best you could still get from here
+    ub = value_so_far + knapsack_01(remaining_values[pos:],
+                                    remaining_credits[pos:],
+                                    credit_left)
+    # (b) prune if you can't beat the K-th best result so far
+    if len(results) >= top_k and ub <= threshold["v"]:
+        return
+    cid  = optional_ids[pos]
+    cred = by_id[cid].credit
+    # (c) "include" branch — only if credit fits and A-2 compatibility passes
+    if cred <= credit_left and compatible_with_chosen(cid):
+        chosen.append(cid)
+        dfs(pos + 1, value_so_far + partial_values[cid], credit_left - cred)
+        chosen.pop()
+    # (d) "exclude" branch
+    dfs(pos + 1, value_so_far, credit_left)
+```
+
+A few things make this work:
+
+- The knapsack bound `ub` is computed over the remaining items **ignoring compatibility, group, and category-count constraints**. That makes it a valid over-estimate, which is what pruning needs to stay correct. Extra constraints can only make the real value *lower* than the bound, so we never prune away a true optimum.
+- `compatible_with_chosen(cid)` is a single dict lookup per pair — A-2 already stored every `(id, id)` outcome.
+- The search is bounded by the number of optional courses, not by credits or by score magnitude.
+
+#### `record()` — what counts as a valid finished subset
+
+When the DFS reaches a leaf, the candidate subset is kept only if **all three** checks below pass:
+
+```
+1. used_credit ≥ credit_min                  # otherwise: dropped
+2. every required group has ≥ 1 section      # otherwise: dropped
+3. every category count is in [min, max]     # otherwise: dropped
+```
+
+Surviving subsets are appended to `results` with their value. When `results` grows past `4 × top_k`, it is sorted and trimmed to `2 × top_k`, and `threshold["v"]` is updated — that single number is the K-th best total so far, and is what powers the pruning in step (b) above.
+
+#### After the DFS
+
+`valuation()` scores each surviving subset with `_build_breakdown` (adding the schedule-level penalties — travel, compactness, day-span, …; see §4.5), sorts by total, takes the top K, and packages them as `ScoredSchedule`s with each schedule's per-term `ScoreBreakdown` attached. That is what flows into C.
+
+Complexity is exponential in the number of *optional* courses in the absolute worst case, but density sort + knapsack-bound pruning + the top-K trim keep typical instances (≤ 30 candidates, ≤ 20 buildings) under one millisecond.
 
 ### 4.5 Output — ScoreBreakdown (10 fields)
 
+Every recommended schedule comes with its score *broken out* into 10 independent fields. The total is just their sum:
+
 ```
-total =  core_importance        
+total = core_importance              (the "I want these courses" part)
+      + category_weight              (category × requirement × professor preferences)
+      + building_penalty             (preference for / against specific buildings)
+      + time_penalty                 (exact-slot bonuses or penalties from the time grid)
+      + travel_penalty               (−λ₁ × total walking minutes)
+      + compactness_penalty          (−λ₂ × days over target_active_days)
+      + diversity_penalty            (−λ₃ × distinct buildings used in the week)
+      + back_to_back_term            (back_to_back_preference × adjacent same-day pairs within 5 min)
+      + time_window_penalty          (−λ₄ × minutes scheduled outside the preferred window)
+      + daily_span_penalty           (−λ₅ × Σ_day  (last class end − first class start) / 60)
 ```
+
+Each field is kept separate **on purpose**. When the UI or the LLM explains *why one schedule beat another*, it does so by pointing at the specific field that made the difference — e.g. *"schedule #1 ranks higher than #2 because its `travel_penalty` is −2.4 vs −7.8."* This is what powers priority §2.3 #2 (explainability) in practice.
+
+#### Worked example
+
+Suppose the user enters six candidate courses, sets `target_active_days = 4`, leaves the other λ values at their defaults, locks one course as `must_include` with importance 5, gives majors a category weight of `+0.5`, and adds a blackout on Friday mornings. For one of the top-K schedules returned, the breakdown might look like this:
+
+| Field                  | Value     | Why                                                              |
+| ---------------------- | --------- | ---------------------------------------------------------------- |
+| `core_importance`      | `+45.0`   | importances `5, 3, 4, 3` × credits `3, 3, 3, 3` summed           |
+| `category_weight`      | `+1.5`    | 3 of the 4 picked courses are majors × `+0.5` each               |
+| `building_penalty`     | `0.0`     | no `building_penalties` set                                      |
+| `time_penalty`         | `0.0`     | empty `time_penalty_grid`                                        |
+| `travel_penalty`       | `−2.4`    | 24 min total walking across the week × λ₁ = 0.1                  |
+| `compactness_penalty`  | `−0.5`    | schedule uses 5 active days vs target 4 → over=1, × λ₂ = 0.5     |
+| `diversity_penalty`    | `0.0`     | λ₃ default 0                                                     |
+| `back_to_back_term`    | `0.0`     | `back_to_back_preference` left at 0                              |
+| `time_window_penalty`  | `0.0`     | preferred window left at default (full day)                      |
+| `daily_span_penalty`   | `0.0`     | λ₅ default 0                                                     |
+| **`total`**            | **`+43.6`** | this schedule's final score                                      |
+
+A near-twin schedule that costs another 30 min of walking would carry `travel_penalty = −5.4` and a `total ≈ +40.6` instead — same courses, lower rank.
+
+This is also the structure the LLM input path (§2.2) targets when filling preferences from free text: each free-text phrase becomes a numerical change to *exactly one of these fields*.
+
+### 4.6 Current scope (MVP)
+
+- ✓ Top-K timetables + score breakdown + inclusion / exclusion rationale
+- ✓ A-B-C tree + group / professor dimensions + per-slot building
+- ✓ Hard blackout (per-slot any-hit removal) · minimum break · category-count constraints · time-window preference λ₄ · daily span λ₅
+- ✓ Infeasibility responses with `resolution_hint`
+- ✓ Korea University `sample_data.csv` parsing · Upstage natural-language input
+- ⏳ LLM natural-language *explanations* of results — `explain: true` is accepted but currently returns `explanation: null`
+- ⏳ DB persistence (Supabase: design only)
+- ⏳ Real building-distance table (currently auto-extracted + 5-min default for cross-building pairs)
+
+---
+
+## 5. Further reading
+
+The `claude/` folder is structured so you can dive in along whichever axis matters to you. The starting points below are grouped by intent rather than by file location.
+
+### 5.1 If you are evaluating the project
+
+- [`claude/base/product.md`](claude/base/product.md) — **the authoritative product doc.** Defines the one-line summary, the four-constraint problem, the 10-priority ladder, trade-off rules, the LLM invariant, and what is explicitly out of scope. Read §1, §2, §4 and §4.4 first.
+- [`claude/base/structure-overview.md`](claude/base/structure-overview.md) — a single SVG diagram of the whole project: implemented pieces, current status, and pending items marked at a glance.
+- [`claude/base/drafts/algorithm-tree.md`](claude/base/drafts/algorithm-tree.md) §9 — the locked algorithm specification: A-1 / A-2 / A-3 / B-1 / B-2 / B-3 / C-1 / C-2 / C-3 with the algorithms placed at each node, the score formula, and the complexity sketch.
+
+### 5.2 If you are extending the algorithm
+
+- [`app/libs/`](app/libs/) — the algorithm core. `timetable.py` is the entry orchestrator; `feasibility.py`, `valuation.py`, and `selection.py` are the A / B / C nodes. Each individual algorithm (`floyd_warshall.py`, `activity_selection.py`, `knapsack.py`, `merge_sort.py`, `lcs.py`, `binary_search.py`) is a separate pure function — easy to test in isolation.
+- [`claude/base/drafts/algorithm-tree.md`](claude/base/drafts/algorithm-tree.md) §9.3 — the score formula and node-internal logic, so any new term has a documented place to attach.
+- [`app/schemas/preferences.py`](app/schemas/preferences.py) — every new tunable knob lands here first. The convention is *optional field, safe default, backward-compatible* (see §4.3 and any commit touching a `_lambda` field for the pattern).
+- [`tests/`](tests/) — `pytest`. Each B-3 constraint (`min_break_minutes`, `category_count_*`, the lambdas) has a dedicated test file; copying one of them is the fastest way to add coverage for a new field.
+
+### 5.3 If you are wiring the database or persistence
+
+- [`claude/base/architecture.md`](claude/base/architecture.md) §2 and §5 — layered design and the inter-layer contracts. The DB is currently *not wired*; the design lives entirely in `claude/server/db/`.
+- [`claude/server/db/`](claude/server/db/) — one Markdown file per planned table (DDL, foreign keys, indices). `preference_sets.md` is the most useful entry point because it mirrors `PreferenceVector`; the rest fan out from there.
+- [`claude/server/backend-architecture.md`](claude/server/backend-architecture.md) — the future caching / persistence shape. Currently aspirational; not all of it is implemented.
+
+### 5.4 If you are working with the LLM input or explanation path
+
+- [`claude/base/product.md`](claude/base/product.md) §4.4 — the **system invariant**: what the LLM is allowed to do, and what it must never do. Read this before changing anything LLM-touching.
+- [`claude/llm-include/prompts/`](claude/llm-include/prompts/) — every prompt template, in `.md`. Currently `preference_extract.md` (free text → `PreferenceVector` delta).
+- [`app/libs/llm_client.py`](app/libs/llm_client.py) and [`app/libs/llm_context.py`](app/libs/llm_context.py) — the single LLM entry point and the prompt-assembly module. By convention every LLM call passes through `llm_client`.
+- [`app/core/config.py`](app/core/config.py) — `UPSTAGE_*` settings. Missing key → graceful `503 LLM_UNAVAILABLE` (see §1.4 and §3.4).
+
+### 5.5 If you are setting up the workflow or the team
+
+- [`claude/CLAUDE.md`](claude/CLAUDE.md) — root work-rules index (what changes go through which review, base-vs-area rules, etc.).
+- [`claude/base/CLAUDE.md`](claude/base/CLAUDE.md) — base-area rules (the `product.md` / `architecture.md` / `algorithm-tree.md` "do not modify without approval" set).
+- [`claude/<area>/team-guide.md`](claude/server/team-guide.md) — area-specific conventions (server, frontend, llm-include each have their own).
+- [`claude/<area>/progress.md`](claude/server/progress.md) — area-specific change ledger.
+- [`claude/<area>/tasks.md`](claude/server/tasks.md) — kanban boards (`S-`, `F-`, `I-` IDs).
+
+### 5.6 The 30-second pointer
+
+If you only have time for one file, read [`claude/base/product.md`](claude/base/product.md). Everything else in `claude/` either supports it, implements it, or extends it.
