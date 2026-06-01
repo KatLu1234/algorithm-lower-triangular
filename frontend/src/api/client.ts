@@ -150,7 +150,7 @@ export async function parsePreference(
 
 /** 샘플 강의 카탈로그 조회 — GET /api/v1/timetable/sample-courses.
  *
- *  국민대 sample_data.csv를 백엔드가 파싱해 반환한 Course[]. 초기 로드 시
+ *  고려대 sample_data.csv를 백엔드가 파싱해 반환한 Course[]. 초기 로드 시
  *  PreferenceForm의 후보 풀을 채우는 데 사용. 서버 미가용/CSV 없음이면 throw.
  */
 export async function fetchSampleCourses(): Promise<SampleCoursesResponse> {

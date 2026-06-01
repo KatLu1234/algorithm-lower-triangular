@@ -30,6 +30,10 @@
 DB 전용 enum(스키마에 대응 없음): `selection_flag`(preference_courses),
 `constraint_type`(preference_groups), `status`(solve_runs).
 
+**인증·보안(웹):** 사용자 인증은 Supabase Auth 연동으로 확정. `users.id` 가 `auth.users.id` 를
+참조하고, 13개 테이블 전체에 RLS를 건다. 트리거·헬퍼 함수·정책 전문은
+[`auth-and-rls.md`](./auth-and-rls.md) 에 모았다.
+
 ## 2. 테이블 목록 (13개)
 
 ### 참조 데이터 — 강의 카탈로그
@@ -45,7 +49,7 @@ DB 전용 enum(스키마에 대응 없음): `selection_flag`(preference_courses)
 
 | 테이블 | 문서 | 역할 |
 | ------ | ---- | ---- |
-| `users` | [users.md](./users.md) | 학생 = 선호 설정 소유자 |
+| `users` | [users.md](./users.md) | 학생 = 선호 설정 소유자 (`auth.users` 연동) |
 | `preference_sets` | [preference_sets.md](./preference_sets.md) | 학점 한도 + 쉬는시간(min_break) + 카테고리 개수제약 + 후처리 λ + JSONB 가중치 |
 | `preference_courses` | [preference_courses.md](./preference_courses.md) | 후보풀 + 중요도 + must/exclude 플래그 |
 | `preference_groups` | [preference_groups.md](./preference_groups.md) | 과목 그룹 단위 제약 |
@@ -94,11 +98,16 @@ users
   CHECK 제약으로 강제 (§1 표).
 - **PK 타입**: 자연키가 있는 참조 데이터는 text PK(`courses.id`, `buildings.code`), 사용자
   생성 데이터는 `uuid DEFAULT gen_random_uuid()`, 단순 링크/슬롯은 `bigint identity`.
+  단 `users.id` 는 예외로 `gen_random_uuid()` 가 아니라 `auth.users.id` 를 참조한다(값의 출처가 Auth).
+- **인증·RLS**: Supabase Auth 연동. `public.users` 가 `auth.users` 를 참조하고, 회원가입 트리거가
+  프로필을 자동 생성한다. 모든 공개 테이블에 RLS를 걸어 카탈로그는 공개 읽기, 사용자 데이터는
+  `auth.uid()` 소유자만 접근. 백엔드는 service_role(우회), 프론트는 anon+JWT. 전문 → [`auth-and-rls.md`](./auth-and-rls.md).
 - **삭제 전파**: 부모 삭제 시 자식 정리를 위해 대부분 ON DELETE CASCADE. 단,
   `courses.building_code → buildings.code` 는 RESTRICT(카탈로그 보호).
 
 ## 5. 적용 방법 (참고)
 
-각 테이블 문서의 DDL을 §3 순서대로 모아 Supabase SQL 에디터에서 실행한다.
+각 테이블 문서의 DDL을 §3 순서대로 모아 Supabase SQL 에디터에서 실행한 뒤,
+[`auth-and-rls.md`](./auth-and-rls.md) §6 순서대로 트리거·헬퍼 함수·RLS 정책을 적용한다.
 실제 적용 전 `../../CLAUDE.md` §4.2에 따라 사용자 확인을 받는다.
 ```

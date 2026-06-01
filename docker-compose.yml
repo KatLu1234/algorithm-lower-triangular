@@ -1,30 +1,17 @@
-# 시간표 만들기 — 프론트(nginx HTTPS + /api 프록시) + 백엔드(FastAPI/uvicorn)
+# 시간표 만들기 — nginx(HTTPS) + 백엔드(FastAPI) + certbot(Let's Encrypt 갱신)
+#
+# 기본 흐름:
+#   client ── :443 (TLS) ──> nginx ┬── / : 정적 SPA
+#                                  └── /api/ ─> backend:8000 (FastAPI)
+#   client ── :80 ──> nginx ┬── /.well-known/acme-challenge/ : webroot (certbot)
+#                           └── 그 외 : https:// 영구 리다이렉트
 #
 # 사용:
-#   docker compose up --build
-#   → https://kustimetable.duckdns.org/   (인증서 발급 후)
-#   → http://kustimetable.duckdns.org/    → 301 → https
+#   1) 첫 실행: `./init-letsencrypt.sh` 한 번 — 더미 인증서로 nginx 부팅 → Let's Encrypt 실 인증서 발급 → reload.
+#   2) 이후:   `docker compose up -d` — 인증서는 ./certbot/conf 볼륨에 영속화됨.
+#   3) 갱신:   certbot 컨테이너가 12시간마다 `certbot renew` 자동 실행.
 #
-# 첫 인증서 발급(없으면 nginx 시작 실패):
-#   # 1) 일단 HTTP 전용 임시 nginx 또는 docker run으로 80만 열어두기.
-#   # 2) certbot HTTP-01 챌린지 발급:
-#   docker run --rm \
-#     -v "$(pwd)/certbot/conf:/etc/letsencrypt" \
-#     -v "$(pwd)/certbot/www:/var/www/certbot" \
-#     certbot/certbot certonly --webroot -w /var/www/certbot \
-#     -d kustimetable.duckdns.org --email you@example.com \
-#     --agree-tos --no-eff-email
-#   # 3) docker compose up --build  (이후 인증서 자동 마운트)
-#
-# 인증서 갱신(cron 권장 — 매일 03:30):
-#   docker run --rm \
-#     -v "$(pwd)/certbot/conf:/etc/letsencrypt" \
-#     -v "$(pwd)/certbot/www:/var/www/certbot" \
-#     certbot/certbot renew --quiet && docker compose exec nginx nginx -s reload
-#
-# 단일 백엔드 직접 호출:
-#   docker compose up backend
-#   → http://localhost:8000/docs
+# 로컬 dev(HTTPS 없이) — `npm run dev` + `uvicorn` 직접 실행. 본 compose 파일은 운영형 토폴로지 전용.
 
 services:
   backend:
@@ -33,8 +20,10 @@ services:
       dockerfile: Dockerfile.backend
     image: lt-backend:latest
     container_name: lt-backend
-    ports:
-      - "8000:8000"
+    # nginx 컨테이너 내부에서 backend:8000 으로 통신. 호스트로의 직접 노출은
+    # 디버깅 필요시에만(기본은 숨김 — TLS 우회 방지).
+    expose:
+      - "8000"
     environment:
       # MVP는 DB 미연결 — supabase 사용 시점에서 채움
       SUPABASE_URL: ""
@@ -43,7 +32,11 @@ services:
       # 환경변수가 그대로 컨테이너에 들어간다 — 비어 있으면 LLM 라우트는 503.
       UPSTAGE_API_KEY: "${UPSTAGE_API_KEY:-}"
       UPSTAGE_MODEL: "${UPSTAGE_MODEL:-solar-pro2}"
+      # 로컬 SQLite 인증 저장소 위치 — 볼륨에 영속화.
+      AUTH_DB_PATH: "/data/auth.db"
       PYTHONUNBUFFERED: "1"
+    volumes:
+      - lt-auth-data:/data
     restart: unless-stopped
 
   nginx:
@@ -53,14 +46,56 @@ services:
     image: lt-frontend:latest
     container_name: lt-nginx
     ports:
-      - "80:80"     # HTTP — ACME 챌린지 + HTTPS 리다이렉트
-      - "443:443"   # HTTPS — 본 서비스
+      # 80 → ACME challenge + HTTPS 리다이렉트
+      - "${HTTP_PORT:-80}:80"
+      # 443 → TLS 종단
+      - "${HTTPS_PORT:-443}:443"
     volumes:
-      # Let's Encrypt 인증서 (certbot가 발급해 두는 위치)
+      # Let's Encrypt 인증서 (live/<DOMAIN>/{fullchain,privkey}.pem 등) — 읽기 전용.
       - ./certbot/conf:/etc/letsencrypt:ro
-      # HTTP-01 챌린지 webroot (nginx와 certbot 공유)
+      # ACME http-01 챌린지 webroot — nginx가 /.well-known/acme-challenge/ 로 서빙.
       - ./certbot/www:/var/www/certbot:ro
     depends_on:
       backend:
         condition: service_healthy
+    # 인증서가 갱신되면 nginx 가 자동으로 picked up 하도록, 6시간마다 reload.
+    # (LE 인증서는 90일 만료, 30일 전부터 갱신. nginx 가 메모리에 캐시된 cert 를
+    # 새 파일로 교체하려면 reload 가 필요하다.)
+    command:
+      - /bin/sh
+      - -c
+      - |
+        # nginx 백그라운드 시작 후 6h 주기 reload 루프. 종료 시 nginx 도 종료.
+        nginx -g 'daemon off;' &
+        NGINX_PID=$!
+        trap "kill -TERM $$NGINX_PID; wait $$NGINX_PID" TERM INT
+        while :; do
+          sleep 6h &
+          wait $$!
+          nginx -s reload
+        done &
+        wait $$NGINX_PID
     restart: unless-stopped
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: lt-certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    # 12시간마다 renew 시도 — Let's Encrypt 권장. 만료 임박 시에만 실제 갱신.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        trap exit TERM
+        while :; do
+          certbot renew --webroot -w /var/www/certbot --quiet
+          sleep 12h &
+          wait $$!
+        done
+    restart: unless-stopped
+
+volumes:
+  # 사용자 계정(SQLite) — 컨테이너 재생성에도 살아남음.
+  lt-auth-data:

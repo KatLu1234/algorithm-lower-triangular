@@ -1,6 +1,6 @@
 # frontend — 시간표 만들기 화면
 
-국민대 시간표 추천 + 알고리즘 설명 도구의 프론트엔드입니다.
+고려대 시간표 추천 + 알고리즘 설명 도구의 프론트엔드입니다.
 스택: **Vite + React 18 + TypeScript + Tailwind CSS 3** (fetch 기반 API 클라이언트).
 
 ## 실행

@@ -177,7 +177,9 @@ last_updated: 2026-05-17
 
 | 상황 | 어디 보러 가나 |
 | ---- | -------------- |
-| 새 화면 추가 | 본 문서 §4 매핑 + §5.1 프롬프트 + `user-experience.md` §2 여정 |
+| 새 화면 추가 | [`pages/index.md`](./pages/index.md) §7 절차 + 본 문서 §4 매핑 + `user-experience.md` §2 여정 |
+| 페이지·라우팅 구조 확인 | [`pages/index.md`](./pages/index.md) §1·§2 (URL → 페이지 → 인증 가드 매핑) |
+| 페이지별 상세 (입력/API/상태) | `pages/<slug>.md` — login·main·timetable·course-search 한 페이지당 한 파일 |
 | 스택 도입·교체 | `../base/architecture.md` §2.4 절차 |
 | 에러 문구 작성 | `../base/user-experience.md` §4 |
 | 빈 상태 디자인 | `../base/user-experience.md` §4 (Empty state) |

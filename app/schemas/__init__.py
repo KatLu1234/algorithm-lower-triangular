@@ -7,6 +7,9 @@
 from .item import Item, ItemCreate, ItemUpdate
 from .msg import Msg
 
+# 인증
+from .auth import AuthResponse, LoginRequest, SignupRequest, UserPublic
+
 # 공유 도메인 타입
 from .common import (
     BlackoutWindow,
@@ -36,6 +39,7 @@ from .selection import (
 
 __all__ = [
     "Item", "ItemCreate", "ItemUpdate", "Msg",
+    "AuthResponse", "LoginRequest", "SignupRequest", "UserPublic",
     "BlackoutWindow", "BuildingCode", "Category", "Course",
     "CourseGroupId", "CourseId",
     "InfeasibilityReason", "InfeasibilityReport",

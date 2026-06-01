@@ -38,7 +38,7 @@
   <!-- ══════════ VISION ══════════ -->
   <rect x="20" y="18" width="960" height="64" rx="10" class="panel-hi"/>
   <text x="500" y="44" text-anchor="middle" class="t-vision-title">현재 계획 — 균형 모델 (후보 C)</text>
-  <text x="500" y="64" text-anchor="middle" class="t-vision-sub">국민대 학생 시간표 추천 + 알고리즘 단위 설명  ·  product.md ✓ 결정</text>
+  <text x="500" y="64" text-anchor="middle" class="t-vision-sub">고려대 학생 시간표 추천 + 알고리즘 단위 설명  ·  product.md ✓ 결정</text>
 
   <!-- ══════════ TIER 2 ══════════ -->
 

@@ -162,7 +162,7 @@ export function buildSamplePreference(): PreferenceVector {
 
 /** 서버에서 받은 실제 강의 풀(Course[])로 PreferenceVector 기본값 조립.
  *
- *  국민대 sample_data.csv → /timetable/sample-courses 응답을 받은 직후 사용한다.
+ *  고려대 sample_data.csv → /timetable/sample-courses 응답을 받은 직후 사용한다.
  *  중요도·가중치는 기본값(중요도 3·전공 +0.5·필수 +1.0)으로 시작 — 사용자가
  *  폼에서 조정한다.
  */

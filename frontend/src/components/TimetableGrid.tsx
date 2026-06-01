@@ -10,8 +10,8 @@ import type { Category, Course, CourseId, Weekday } from "../types/timetable";
 import { WEEKDAY_LABEL } from "../types/timetable";
 import { computeGridBounds, hourTicks, minutesToHHMM } from "../lib/time";
 
-const ROW_HEIGHT = 60; // 시간(1h)당 픽셀
-const pxPerMinute = ROW_HEIGHT / 60;
+const ROW_HEIGHT = 60; // 시간(1h)당 픽셀 (기본)
+const COMPACT_ROW_HEIGHT = 18; // 미니 격자(1h당) — ScheduleCard 미리보기용
 
 interface CategoryStyle {
   block: string; // 블록 배경/테두리/글자
@@ -37,9 +37,16 @@ interface PlacedBlock {
 interface TimetableGridProps {
   courses: Course[]; // 강의 풀 (조회용)
   selectedCourseIds: CourseId[];
+  /** 미니 격자 모드 — ScheduleCard 미리보기 등. 행 높이·라벨·텍스트를 축소한다.
+   *  기본 false(전체 격자). */
+  compact?: boolean;
 }
 
-export function TimetableGrid({ courses, selectedCourseIds }: TimetableGridProps) {
+export function TimetableGrid({
+  courses,
+  selectedCourseIds,
+  compact = false,
+}: TimetableGridProps) {
   const byId = new Map(courses.map((c) => [c.id, c]));
   const selected = selectedCourseIds
     .map((id) => byId.get(id))
@@ -47,6 +54,8 @@ export function TimetableGrid({ courses, selectedCourseIds }: TimetableGridProps
 
   const bounds = computeGridBounds(selected.length > 0 ? selected : courses);
   const ticks = hourTicks(bounds);
+  const rowHeight = compact ? COMPACT_ROW_HEIGHT : ROW_HEIGHT;
+  const pxPerMinute = rowHeight / 60;
   const bodyHeight = (bounds.endMinute - bounds.startMinute) * pxPerMinute;
 
   const blocks: PlacedBlock[] = [];
@@ -62,7 +71,9 @@ export function TimetableGrid({ courses, selectedCourseIds }: TimetableGridProps
     }
   }
 
-  const gridTemplateColumns = `3.5rem repeat(${bounds.days.length}, minmax(0, 1fr))`;
+  // compact 모드는 시간 축 컬럼을 좁힘. 라벨도 두 시간 간격으로만 표시.
+  const timeColWidth = compact ? "1.25rem" : "3.5rem";
+  const gridTemplateColumns = `${timeColWidth} repeat(${bounds.days.length}, minmax(0, 1fr))`;
   const topFor = (minute: number) => (minute - bounds.startMinute) * pxPerMinute;
 
   return (
@@ -73,7 +84,11 @@ export function TimetableGrid({ courses, selectedCourseIds }: TimetableGridProps
         {bounds.days.map((day) => (
           <div
             key={day}
-            className="py-2 text-center text-sm font-semibold text-ink-soft"
+            className={
+              compact
+                ? "py-0.5 text-center text-[10px] font-semibold text-ink-soft"
+                : "py-2 text-center text-sm font-semibold text-ink-soft"
+            }
           >
             {WEEKDAY_LABEL[day]}
           </div>
@@ -82,17 +97,23 @@ export function TimetableGrid({ courses, selectedCourseIds }: TimetableGridProps
 
       {/* 본문: 시간 축 + 요일 컬럼 */}
       <div className="grid" style={{ gridTemplateColumns }}>
-        {/* 시간 축 */}
+        {/* 시간 축 — compact 모드에선 2시간 간격으로만, "9", "11"처럼 시(hour)만 */}
         <div className="relative" style={{ height: bodyHeight }}>
-          {ticks.map((tick) => (
-            <div
-              key={tick}
-              className="absolute right-1.5 -translate-y-1/2 text-[11px] tabular-nums text-ink-faint"
-              style={{ top: topFor(tick) }}
-            >
-              {minutesToHHMM(tick)}
-            </div>
-          ))}
+          {ticks
+            .filter((tick) => !compact || (tick / 60) % 2 === 0)
+            .map((tick) => (
+              <div
+                key={tick}
+                className={
+                  compact
+                    ? "absolute right-0.5 -translate-y-1/2 text-[8px] tabular-nums text-ink-faint"
+                    : "absolute right-1.5 -translate-y-1/2 text-[11px] tabular-nums text-ink-faint"
+                }
+                style={{ top: topFor(tick) }}
+              >
+                {compact ? String(tick / 60) : minutesToHHMM(tick)}
+              </div>
+            ))}
         </div>
 
         {/* 요일별 컬럼 */}
@@ -122,6 +143,20 @@ export function TimetableGrid({ courses, selectedCourseIds }: TimetableGridProps
                 const meta = [b.course.building, b.course.professor]
                   .filter(Boolean)
                   .join(" · ");
+                if (compact) {
+                  // 미니: 색상 블록만 — 이름은 title 로만 노출.
+                  return (
+                    <div
+                      key={`${b.course.id}-${b.day}-${b.startMinute}`}
+                      className={`absolute inset-x-[1px] overflow-hidden rounded-sm border-l-2 ${style.block} ${style.bar.replace("bg-", "border-l-")}`}
+                      style={{ top: top + 0.5, height: Math.max(height - 1, 6) }}
+                      title={`${b.course.name} (${minutesToHHMM(b.startMinute)}–${minutesToHHMM(
+                        b.endMinute,
+                      )})`}
+                      aria-label={b.course.name}
+                    />
+                  );
+                }
                 return (
                   <div
                     key={`${b.course.id}-${b.day}-${b.startMinute}`}

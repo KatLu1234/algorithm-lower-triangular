@@ -13,8 +13,8 @@ do_not_update_for:
 authoritative_for:
   - 프론트엔드 영역의 현재 기술 스택 (§1)
   - 프론트엔드 영역 한정 별도 지침 (§2)
-stack_status: 1차 확정 (2026-05-21)
-last_updated: 2026-05-21
+stack_status: 1차 확정 (2026-05-21) — 라우터·다중 페이지 추가 (2026-06-01)
+last_updated: 2026-06-01
 ---
 
 # frontend/progress.md — 프론트엔드 영역 진행 이력
@@ -29,7 +29,7 @@ last_updated: 2026-05-21
 | 언어 | TypeScript | 시간표/동선 데이터 구조가 복잡 → 타입 안정성 (team-guide §3 권장) |
 | 프레임워크 | React 18 | |
 | 번들러 / 빌드 | Vite 5 | SSR 불필요 → Vite로 충분 |
-| 라우팅 | 단일 페이지 (라우터 미도입) | 화면 1개로 시작. 화면이 늘면 react-router 검토 |
+| 라우팅 | react-router-dom (다중 페이지) | 4 페이지 구조 `/login`·`/`·`/timetable`·`/courses`. 인증 가드 `<ProtectedRoute>`. 페이지 설계는 `pages/index.md` |
 | 상태 관리 | React 로컬 상태 (useState) | 전역 상태가 필요해지면 재검토 |
 | 스타일링 | Tailwind CSS 3 | |
 | UI 컴포넌트 | 자체 컴포넌트 | 외부 UI 라이브러리 미도입 |
@@ -44,7 +44,7 @@ last_updated: 2026-05-21
 
 | 항목 | 결정 | 결정일 | 사유 |
 | ---- | ---- | ------ | ---- |
-|      |      |        |      |
+| 다중 페이지 구조 | 4 페이지(`/login`·`/`·`/timetable`·`/courses`) 분할. 단일 페이지 데모(`frontend/docs/demo-layout.md`)를 운영형 다중 페이지로 흡수. 페이지별 설계는 `pages/<slug>.md` 한 페이지당 한 파일. 인증 가드는 `<ProtectedRoute>` 공통 셸. | 2026-06-01 | "로그인 → 메인(시간표 짜기·강의 검색 분기) + 두 기능 페이지 분리" 사용자 요청 |
 
 ---
 
@@ -55,6 +55,7 @@ last_updated: 2026-05-21
 
 | 날짜 | 항목 | 변경 | 사유 / 트리거 |
 | ---- | ---- | ---- | ------------- |
+| 2026-06-01 | 스택 추가 + 지침 추가 | `react-router-dom` 도입(다중 페이지). 4 페이지 구조(`/login`·`/`·`/timetable`·`/courses`) + 인증 가드 `<ProtectedRoute>` + 공통 셸. 페이지 설계 문서를 `claude/frontend/pages/` 한 페이지당 한 파일로 분리(`index.md`·`login.md`·`main.md`·`timetable.md`·`course-search.md`). `frontend/docs/demo-layout.md`의 단일 페이지 데모를 본 다중 페이지가 대체. §1 라우팅 행 갱신, §2 별도 지침 1행 신설. | "로그인 → 메인(시간표 짜기/강의 검색 카드) + 두 기능 페이지 분리, claude/frontend 폴더 구성" 사용자 요청 |
 | 2026-05-21 | 스택 추가 | frontend 스택 1차 확정: TypeScript + React 18 + Vite 5 + Tailwind CSS 3 + fetch 래퍼. 단일 페이지(라우터 미도입), 로컬 상태. 프로젝트 루트 `frontend/` 디렉터리에 부트스트랩. `architecture.md` §2.1 frontend 행 동기화. | 시간표 생성 페이지(입력 폼 + 주간 격자) 구현 착수, 사용자 승인 |
 | 2026-05-17 | 지침 추가 | `frontend/tasks.md` 신설 — 프론트엔드 영역 작업 칸반(TODO/DOING/DONE) + 카드 형식 + 영역 간 승격 기록. 스택 미확정 단계의 카드는 owner 옆 "스택 결정 후 착수" 표기 컨벤션 도입 | 팀원 작업 확인 보드 도입 |
 | 2026-05-17 | 지침 추가 | `frontend/team-guide.md` 신설 — 프론트엔드 팀원의 영역 진입 문서. 스택 미정이므로 §3은 결정 시 체크리스트 형식 | 영역 팀원 온보딩 통일 |

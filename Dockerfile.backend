@@ -12,7 +12,7 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 # 앱 소스 + 정적 데이터 CSV (엔드포인트가 부팅 시 1회 로드 후 캐시)
-#   - sample_data.csv: 국민대 강의 카탈로그
+#   - sample_data.csv: 고려대 강의 카탈로그
 #   - buildings.csv + building_travel_times.csv: 캠퍼스 건물 + 직접 도보 거리
 COPY app ./app
 COPY sample_data.csv ./sample_data.csv

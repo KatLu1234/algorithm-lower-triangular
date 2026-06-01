@@ -8,7 +8,7 @@
 ## 1. 프로젝트 개요
 
 - **이름**: `algorithm-lower-triangular`
-- **목적**: 국민대학교 알고리즘 수업 과제 — Lower Triangular 관련 알고리즘을 학습·구현하고, 이를 FastAPI 백엔드 서비스 형태로 노출한다.
+- **목적**: 고려대학교 알고리즘 수업 과제 — Lower Triangular 관련 알고리즘을 학습·구현하고, 이를 FastAPI 백엔드 서비스 형태로 노출한다.
 - **기술 스택**
   - 언어: Python 3 (`.venv/` 가상환경 사용)
   - 웹 프레임워크: FastAPI + Starlette + Pydantic v2

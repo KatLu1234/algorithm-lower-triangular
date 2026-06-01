@@ -1,29 +1,64 @@
 # algorithm-lower-triangular
 
-국민대 학생용 시간표 추천 + 알고리즘 단위 설명 도구.
+고려대 학생용 시간표 추천 + 알고리즘 단위 설명 도구.
 
-## 빠른 시작 — Docker Compose (권장)
+## 빠른 시작 — Docker Compose (HTTPS, 운영 토폴로지)
+
+docker compose는 **HTTPS 운영형 토폴로지**(nginx TLS 종단 + Let's Encrypt + FastAPI)로 동작합니다. 로컬 개발은 [Docker 없이 로컬](#빠른-시작--docker-없이-로컬) 섹션을 사용하세요.
+
+### 1) 사전 준비
+
+- 공인 IP가 있는 호스트(EC2/오라클 무료티어 등)
+- 도메인 A 레코드가 호스트 IP를 가리킴 (`nginx.conf`·`init-letsencrypt.sh`의 `kustimetable.duckdns.org`를 본인 도메인으로 바꾸세요)
+- 호스트의 80·443 포트가 외부에 열려 있어야 함 (Let's Encrypt 검증)
+- `docker compose v2`, `openssl`, `curl`, `wget`
+
+### 2) Let's Encrypt 인증서 최초 발급 (한 번)
+
+```bash
+# (선택) staging 으로 먼저 테스트 — rate limit 안전
+STAGING=1 EMAIL=you@example.com ./init-letsencrypt.sh
+
+# 실제 발급
+EMAIL=you@example.com ./init-letsencrypt.sh
+```
+
+스크립트가 더미 자체서명 → nginx 부트 → certbot `--webroot` 실 인증서 → nginx reload 까지 자동.
+
+### 3) 일반 기동
 
 ```bash
 # (선택) 자연어 입력 기능을 켜려면 Upstage Solar API 키
 export UPSTAGE_API_KEY=up_xxxxxxxxxxxxxxxxx
-docker compose up --build
-```
 
-`UPSTAGE_API_KEY` 미설정이어도 docker compose는 떠 있습니다 — 자연어 입력만 비활성됩니다.
+docker compose up -d --build
+```
 
 뜨고 나면:
 
-- **시간표 만들기 화면** → http://localhost:8080
-- 백엔드 직접 호출 / OpenAPI → http://localhost:8000/docs
+- **앱 화면** → `https://<your-domain>/`
+- HTTP 요청은 301로 HTTPS 리다이렉트
+- `/api/*` 요청은 nginx가 backend(FastAPI)로 프록시 (`frontend/nginx.conf`)
 
-`/api/*` 요청은 frontend(nginx)가 backend(FastAPI)로 자동 프록시합니다 (`frontend/nginx.conf`).
+### 4) 인증서 갱신
+
+`certbot` 서비스가 12시간마다 `certbot renew`를 자동 실행, nginx 서비스도 6시간마다 자체 `nginx -s reload`를 돌려 새 인증서를 메모리에 다시 로드. **수동 갱신 불필요**.
+
+### 5) 포트 충돌 시
+
+호스트의 80·443이 점유돼 있으면 `.env`로 우회:
+
+```bash
+HTTP_PORT=8080 HTTPS_PORT=8443 docker compose up -d
+```
+
+단, Let's Encrypt 챌린지는 **외부에서 :80**으로 와야 하므로 운영 환경에서는 표준 포트를 권장.
 
 ### 정리
 
 ```bash
-docker compose down            # 컨테이너 중지·제거
-docker compose down --rmi all  # 이미지까지 제거
+docker compose down            # 컨테이너 중지·제거 (cert/auth 볼륨은 유지)
+docker compose down -v --rmi all  # 볼륨·이미지까지 제거 (계정·인증서 전부 사라짐)
 ```
 
 ## 빠른 시작 — Docker 없이 로컬
@@ -64,7 +99,10 @@ algorithm-lower-triangular/
 ├── claude/                  설계·결정 문서 (`base/`가 권위)
 ├── tests/                   pytest (스키마 케이스 11개)
 ├── Dockerfile.backend       python:3.12-slim + uvicorn
-├── docker-compose.yml       backend(8000) + frontend(8080)
+├── docker-compose.yml       nginx(:80→301, :443 TLS) + backend(내부 :8000) + certbot(자동 갱신)
+├── init-letsencrypt.sh      ★ 최초 1회 — 더미 cert → 실 Let's Encrypt 인증서 발급
+├── certbot/conf/            ★ /etc/letsencrypt 영속화 (인증서·옵션)
+├── certbot/www/             ★ ACME http-01 챌린지 webroot
 └── requirements.txt
 ```
 
@@ -75,7 +113,7 @@ algorithm-lower-triangular/
 - ✓ 프론트에서 강의 후보·학점·중요도·blackout 입력 → 백엔드가 top-K 시간표 + 점수 분해 + 포함/배제 사유 반환
 - ✓ A-B-C 트리 그대로 (Feasibility → Valuation → Selection), 그룹·교수 차원 반영
 - ✓ Infeasibility 응답 (필수 강의 충돌·학점 한도 등) — 사용자 친화 hint 포함
-- ✓ **국민대 `sample_data.csv` 파싱** — `time_room` 필드(`화(6-8) 석원경상관 112호` 등)를
+- ✓ **고려대 `sample_data.csv` 파싱** — `time_room` 필드(`화(6-8) 석원경상관 112호` 등)를
   `TimeSlot`으로 변환. 1교시=9시, n교시=(n+8)시 매핑. 같은 `cour_cd`의 분반들은 자동으로
   같은 `course_group_id`로 묶여 그룹 배타 규칙이 그대로 적용됨. 프론트는 마운트 시
   `GET /api/v1/timetable/sample-courses` 호출해 후보 풀을 채움

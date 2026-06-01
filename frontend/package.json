@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "국민대 시간표 추천 + 알고리즘 설명 도구의 프론트엔드 (Vite + React + TS + Tailwind)",
+  "description": "고려대 시간표 추천 + 알고리즘 설명 도구의 프론트엔드 (Vite + React + TS + Tailwind)",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

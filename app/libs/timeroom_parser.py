@@ -1,4 +1,4 @@
-"""국민대 수강 데이터 `time_room` 필드 + CSV 로더.
+"""고려대 수강 데이터 `time_room` 필드 + CSV 로더.
 
 CSV(예: `sample_data.csv`)는 각 행이 한 분반이며, 시간·장소는 `time_room` 컬럼에
 다음 형식의 문자열로 들어 있다:

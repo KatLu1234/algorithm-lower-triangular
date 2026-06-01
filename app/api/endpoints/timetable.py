@@ -293,7 +293,7 @@ def parse_preference(req: ParsePreferenceRequest):
 
 @router.get("/sample-courses", response_model=SampleCoursesResponse)
 def sample_courses():
-    """국민대 sample_data.csv를 파싱한 강의 풀을 반환.
+    """고려대 sample_data.csv를 파싱한 강의 풀을 반환.
 
     프론트가 초기 로드 시 호출해 입력 폼의 후보 강의 풀을 채운다.
     파일이 없거나(로컬 dev 워크트리·테스트 환경) 모두 시간 미정이면 빈 리스트.

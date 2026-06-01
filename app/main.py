@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 from app.api.api import api_router
+from app.api.endpoints.auth import _AuthError
 
 app = FastAPI(
     title="Lower Triangular Project API",
@@ -40,6 +41,15 @@ async def _validation_exception_handler(_request: Request, exc: RequestValidatio
     return JSONResponse(
         status_code=422,
         content={"detail": detail, "code": "VALIDATION_ERROR"},
+    )
+
+
+@app.exception_handler(_AuthError)
+async def _auth_exception_handler(_request: Request, exc: _AuthError):
+    """auth Depends 내부에서 던진 인증 실패를 {detail, code} 표준으로 변환."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail, "code": exc.code},
     )
 
 
